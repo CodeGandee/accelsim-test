@@ -17,6 +17,44 @@ platforms = ["linux-64"]
 accelsim_test = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+# Build Accel-Sim + GPGPU-Sim using the `accelsim` Pixi environment (uses a local CUDA shim when `CUDA_INSTALL_PATH` is unset).
+accelsim-build = "bash scripts/accelsim/build.sh"
+# Quick sanity check: verify `accel-sim.out` starts and prints its banner/config header.
+accelsim-smoke = "bash scripts/accelsim/smoke.sh"
+# Run Accel-Sim upstream short functional tests (downloads traces + runs trace-driven sims; can take a while).
+accelsim-short-tests = "bash scripts/accelsim/short-tests.sh"
 
 [tool.pixi.dependencies]
 python = "3.12.*"
+
+[tool.pixi.feature.accelsim.dependencies]
+bison = "*"
+boost-cpp = "*"
+cmake = "*"
+compilers = "*"
+cuda-toolkit = "12.8.*"
+flex = "*"
+git = "*"
+libgl-devel = "*"
+libglu = "*"
+libxml2 = "*"
+make = "*"
+ninja = "*"
+openssl = "*"
+patchelf = "*"
+perl = "*"
+pkg-config = "*"
+wget = "*"
+xorg-makedepend = "*"
+zlib = "*"
+
+[tool.pixi.feature.accelsim.pypi-dependencies]
+kaleido = "*"
+pandas = "*"
+plotly = "*"
+psutil = "*"
+pyyaml = "*"
+
+[tool.pixi.environments]
+default = { features = [], solve-group = "default" }
+accelsim = { features = ["accelsim"], solve-group = "default" }
