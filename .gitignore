@@ -19,3 +19,9 @@ build/
 .codex/
 .claude/
 .gemini/
+
+tmp/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
