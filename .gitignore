@@ -16,3 +16,6 @@ venv.bak/
 dist/
 build/
 *.egg-info/
+.codex/
+.claude/
+.gemini/
