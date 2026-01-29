@@ -2,3 +2,7 @@
 	path = magic-context
 	url = https://github.com/igamenovoer/magic-context.git
 	branch = main
+[submodule "extern/tracked/accel-sim-framework"]
+	path = extern/tracked/accel-sim-framework
+	url = https://github.com/imsight-forks/accel-sim-framework
+	branch = hz-dev
