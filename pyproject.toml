@@ -10,7 +10,8 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [tool.pixi.workspace]
-channels = ["conda-forge"]
+# Prefer NVIDIA channel for CUDA ecosystem packages; fall back to conda-forge for everything else.
+channels = ["nvidia", "conda-forge"]
 platforms = ["linux-64"]
 
 [tool.pixi.pypi-dependencies]
@@ -24,6 +25,12 @@ accelsim-smoke = "bash scripts/accelsim/smoke.sh"
 # Run Accel-Sim upstream short functional tests (downloads traces + runs trace-driven sims; can take a while).
 accelsim-short-tests = "bash scripts/accelsim/short-tests.sh"
 
+# CUDA build env sanity check (uses the `cuda13` environment)
+cuda13-check-configure = { cmd = "bash -lc 'cd tmp/build-check && cmake -G Ninja -S . -B build -DCMAKE_CUDA_COMPILER=$CONDA_PREFIX/bin/nvcc -DCUDAToolkit_ROOT=$CONDA_PREFIX'", env = { CUDACXX = "$CONDA_PREFIX/bin/nvcc" } }
+cuda13-check-build = "bash -lc 'cd tmp/build-check && cmake --build build'"
+cuda13-check-run = "bash -lc 'cd tmp/build-check && ./build/check_app'"
+cuda13-build-check = "bash -lc 'cd tmp/build-check && ./build-and-run.sh'"
+
 [tool.pixi.dependencies]
 python = "3.12.*"
 
@@ -32,7 +39,7 @@ bison = "*"
 boost-cpp = "*"
 cmake = "*"
 compilers = "*"
-cuda-toolkit = "12.8.*"
+cuda-toolkit = { version = "12.8.*", channel = "conda-forge" }
 flex = "*"
 git = "*"
 libgl-devel = "*"
@@ -55,6 +62,19 @@ plotly = "*"
 psutil = "*"
 pyyaml = "*"
 
+[tool.pixi.feature.cuda13.dependencies]
+cmake = "*"
+ninja = "*"
+cxx-compiler = "*"
+make = "*"
+pkg-config = "*"
+cuda-toolkit = { version = "13.0.*", channel = "nvidia" }
+cuda-nvcc = { version = "13.0.*", channel = "nvidia" }
+cudnn = { channel = "nvidia" }
+
 [tool.pixi.environments]
 default = { features = [], solve-group = "default" }
 accelsim = { features = ["accelsim"], solve-group = "default" }
+cuda13 = { features = ["cuda13"], solve-group = "cuda13" }
+
+

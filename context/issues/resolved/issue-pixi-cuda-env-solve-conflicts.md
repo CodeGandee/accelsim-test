@@ -4,6 +4,10 @@
 
 2026-01-30
 
+## Status
+
+Resolved (2026-01-30)
+
 ## Summary
 
 Creating a project-local CUDA build environment with Pixi can fail to solve when mixing `conda-forge` and `nvidia` channels, especially for CUDA 13.x + cuDNN, due to strict channel priority and similarly named packages with incompatible dependency models.
@@ -90,6 +94,26 @@ Pixi 0.62.2:
 ```bash
 pixi workspace environment list
 pixi workspace environment add cuda13 --feature cuda13 --solve-group cuda13
+```
+
+## Resolution (What Fixed It Here)
+
+This repo’s `pixi-make-cu-build-env` workflow was updated/used to apply the following changes:
+
+- Prefer NVIDIA channel first at the workspace level (`[tool.pixi.workspace].channels = ["nvidia", "conda-forge"]`).
+- Pin CUDA ecosystem packages to the intended channel:
+  - `cuda13`: `cuda-toolkit`/`cuda-nvcc`/`cudnn` from `nvidia`
+  - `accelsim`: `cuda-toolkit=12.8.*` pinned to `conda-forge` to avoid unintended solver picks after reordering channels
+- Put `cuda13` in its own solve-group so it does not conflict with other environments.
+- Use `pixi workspace environment ...` commands (Pixi 0.62.2) rather than non-existent `pixi env` / `pixi environment`.
+
+## Verification
+
+```bash
+pixi install -e cuda13
+pixi run -e cuda13 cuda13-build-check
+pixi run -e cuda13 bash -lc 'which nvcc && nvcc --version | sed -n \"1,8p\"'
+pixi run -e cuda13 bash -lc 'test -f \"$CONDA_PREFIX/include/cudnn.h\" && echo OK'
 ```
 
 ## Notes
