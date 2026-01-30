@@ -26,6 +26,10 @@ class accelsim_profilingRecipe(ConanFile):
     def requirements(self):
         self.requires("cutlass/3.5.1")
         self.requires("benchmark/1.9.4")
+        self.requires("eigen/3.4.0")
+        self.requires("sqlite_orm/1.8.2")
+        self.requires("nlohmann_json/3.11.3")
+        self.requires("rapidcsv/8.84")
 
     def generate(self):
         deps = CMakeDeps(self)
@@ -33,6 +37,8 @@ class accelsim_profilingRecipe(ConanFile):
         tc = CMakeToolchain(self)
         # Prefer Ninja for faster incremental builds (provided by the pixi env in this repo).
         tc.generator = "Ninja"
+        # Force C++17 or higher
+        tc.variables["CMAKE_CXX_STANDARD"] = "17"
         tc.generate()
 
     def build(self):
