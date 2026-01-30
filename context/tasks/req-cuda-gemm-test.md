@@ -116,10 +116,8 @@ The benchmark must cover at least:
   - fp32 (with a toggle for tf32 if relevant)
   - dtype pairs to test (if supported by the backend/framework):
     - `matmul(int8, int8)` (typically int32 accumulate; output type depends on API)
-    - `matmul(int8, fp16)` and `matmul(fp16, int8)`
     - `matmul(fp16, fp16)`
     - `matmul(fp32, fp32)` (with optional TF32 toggle)
-    - `matmul(fp16, fp32)` and `matmul(fp32, fp16)`
 - Layout modes (minimum):
   - contiguous (baseline)
   - transpose-without-materialization (framework transpose view and/or cuBLASLt transpose flag)
@@ -243,3 +241,52 @@ Minimum outputs:
 - **Nsight Compute CLI (ncu)**: https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html
 - **Eigen Documentation**: https://eigen.tuxfamily.org/dox/
 - **Google Benchmark**: https://github.com/google/benchmark
+
+## Appendix: Configuration Checklist
+
+This list consolidates the "Benchmark Matrix" and "Suggested Initial Sweep" for the A100-SXM4 (40MB L2).
+
+### 1. Safety Control Set (Small, Resilient)
+*Goal: Sanity check & low-noise baseline.*
+- **Shapes (M=N=K):** 512, 768, 896, 960, 992, 1000
+- **Shapes (Non-Square):** 
+  - (992, 256, 256)
+  - (256, 992, 256)
+  - (256, 256, 992)
+  - (960, 320, 640)
+- **Variants:** AB, ATB, ABT
+
+### 2. Cache-Resident (Fits in L2)
+*Goal: High throughput, minimal DRAM traffic.*
+- **FP16/BF16 Square:** 1024, 1536, 2048
+- **FP32 Square:** 768, 1024, 1280, 1536
+- **FP16/BF16 Non-Square:**
+  - Tall: (4096, 1024, 1024)
+  - Wide: (1024, 4096, 1024)
+  - Large-K: (1024, 1024, 4096)
+
+### 3. Cache-Spill (Data fits, Extra Transpose Copy doesn't)
+*Goal: Expose cost of materialization.*
+- **FP16/BF16 Square:** 2304
+- **FP32 Square:** 1664
+- **FP16/BF16 Non-Square:**
+  - Copy-A Stress: (3072, 2048, 2048)
+  - Copy-B Stress: (2048, 3072, 2048)
+- **FP32 Non-Square:**
+  - Copy-A Stress: (2304, 1536, 1536)
+  - Copy-B Stress: (1536, 2304, 1536)
+
+### 4. L2 Capacity Spill (Definitely Spills)
+*Goal: DRAM bandwidth bound.*
+- **FP16/BF16:** (8192, 1024, 1024)
+
+### 5. Dtypes & Layouts (Apply to above)
+- **Dtypes:**
+  - `fp16` (Main Tensor Core test)
+  - `bf16` (Alternative Tensor Core test)
+  - `fp32` (Simt/TF32 path)
+  - `int8` (Optional/Advanced: `int8` inputs, `int32` accum)
+- **Layouts:**
+  - Baseline: `A` (RowMajor/ColMajor), `B` (RowMajor/ColMajor) -> `C`
+  - Transpose Views: `A.T`, `B.T`
+  - Materialized: `A_new = Copy(A.T)` (Separate Benchmark Case)
