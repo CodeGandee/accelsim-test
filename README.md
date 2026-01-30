@@ -21,6 +21,60 @@ This repository will contain:
 *   Scripts to drive Accel-Sim simulations and parse output metrics.
 *   Documentation of findings regarding accuracy, simulation speed, and ease of use.
 
+## Project Layout
+
+*   `src/accelsim_test/`: main Python package (src-layout).
+*   `extern/tracked/accel-sim-framework/`: Accel-Sim submodule (reproducible).
+*   `scripts/accelsim/`: helper scripts for building/running Accel-Sim.
+*   `cpp/`: Conan-managed C++ scratch project for profiling tooling (see below).
+*   `tmp/`: scratch space (includes `tmp/build-check/` for CUDA build verification).
+*   `context/`: project knowledge base (hints/issues/notes).
+
+## Development Environments (Pixi)
+
+This repo uses Pixi (`pyproject.toml`, `pixi.lock`) and defines multiple environments:
+
+*   `default`: Python tooling (lint/typecheck/etc).
+*   `accelsim`: dependencies to build/run Accel-Sim (includes CUDA toolkit pinned for that flow).
+*   `cuda13`: a project-local CUDA build environment (CUDA 13.0 + cuDNN) for compiling/running `.cu` code without relying on system CUDA.
+
+Common commands:
+
+```bash
+pixi install
+pixi install -e accelsim
+pixi install -e cuda13
+```
+
+Repo tasks (examples):
+
+```bash
+pixi run accelsim-build
+pixi run accelsim-smoke
+pixi run accelsim-short-tests
+```
+
+CUDA build sanity check (uses the `cuda13` env):
+
+```bash
+pixi run -e cuda13 cuda13-build-check
+```
+
+## C++ Profiling Scratch (`cpp/`)
+
+The `cpp/` directory is a small Conan 2 + CMake project used for experimenting with profiling-related C++ code and dependency integration (e.g., CUTLASS via Conan).
+
+Typical local dev loop:
+
+```bash
+cd cpp
+conan profile detect --force   # once per machine
+conan install . -b missing
+cmake --preset conan-release
+cmake --build --preset conan-release -j
+./build/Release/accelsim_profiling
+```
+
 ## References
 
 *   [Accel-Sim Official Website](https://accel-sim.github.io/)

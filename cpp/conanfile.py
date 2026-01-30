@@ -23,6 +23,10 @@ class accelsim_profilingRecipe(ConanFile):
     def layout(self):
         cmake_layout(self)
 
+    def requirements(self):
+        self.requires("cutlass/3.5.1")
+        self.requires("benchmark/1.9.4")
+
     def generate(self):
         deps = CMakeDeps(self)
         deps.generate()

@@ -21,6 +21,10 @@ This repo uses `pixi` for a reproducible Python environment (`pyproject.toml`, `
 - `pixi run ruff check .`: lint the repository (Ruff is a dependency).
 - `pixi run mypy src`: type-check package code (Mypy is a dependency).
 
+Profiling tools:
+- `nsys`: NVIDIA Nsight Systems (available on the host system).
+- `ncu`: NVIDIA Nsight Compute (installed via `pixi global` and expected to be on `PATH`; if not, add Pixi’s bin dir on the fly, e.g. `export PATH=\"$HOME/.pixi/bin:$PATH\"`).
+
 Submodules (required for external dependencies like Accel-Sim):
 - `git submodule update --init --recursive`
 
@@ -44,4 +48,3 @@ PRs should include:
 - What changed and why (link issues/tasks if applicable).
 - How to reproduce/verify (commands + expected output).
 - Notes when updating submodules (new commit SHA/branch and reason).
-
