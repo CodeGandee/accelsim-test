@@ -45,7 +45,128 @@ Success means we can run a single “full sweep” entry point that:
    - generates `report.md`.
 4. Add a resumable mechanism so partial runs can be continued (skip already-present records and already-generated `profile.ncu-rep`).
 
-### 2.2 Sequence diagram (steady-state usage)
+### 2.2 Sweep settings (concrete)
+
+These settings are the single source of truth for “full sweep” behavior (what we run and with which flags).
+
+#### Environment
+
+- Pixi environment: `cuda13`
+- Build command: `pixi run -e cuda13 gemm-transpose-build`
+- Orchestrator entry point: `pixi run -e cuda13 gemm-transpose ...`
+- NVBench source of truth: `extern/orphan/nvbench/` (must remain available on disk for build + metadata capture)
+
+#### Device selection
+
+- Default to a single device for unambiguous exports: NVBench args include `--devices 0` (unless explicitly overridden).
+
+#### Timing run (NVBench, no profiler)
+
+- Default NVBench flags (tunable, but must be recorded into `results.json.run.settings.nvbench`):
+  - `--stopping-criterion stdrel`
+  - `--min-time 0.5`
+  - `--max-noise 0.5`
+  - `--min-samples 10`
+  - `--devices 0`
+
+#### Profiling run (Nsight Compute per record)
+
+- NVBench flags for profiling mode (minimize iterations; do not use timing as performance under profiler):
+  - `--devices 0`
+  - `--min-time 0`
+  - `--min-samples 1`
+  - `--max-noise 999`
+  - (optional) `--profile` (NVBench internal; keep if it improves attribution, but `ncu` is authoritative)
+- `ncu` flags (baseline; adjust per GPU/driver constraints):
+  - `--target-processes all`
+  - `--kernel-name-base demangled`
+  - `--force-overwrite`
+  - Sections/sets to meet minimum requirements (kernel name + launch config + memory + compute signals):
+    - `--section LaunchStats`
+    - `--section SpeedOfLight`
+    - `--section MemoryWorkloadAnalysis`
+
+#### Output directory layout
+
+- Output root: `tmp/gemm_transpose_<YYYYMMDD_HHMMSS>/`
+- Expected artifacts:
+  - `raw/nvbench_timing_<suite>.json` per timing chunk
+  - `results.json` (merged, schema-valid)
+  - `profiles/<suite>/<dtype_key>/<MxNxK>/<case>/profile.ncu-rep`
+  - `report.md` (measured-time-only tables)
+
+#### Sweep manifest (shapes × dtypes × suites)
+
+This is the explicit list of sweeps required by `context/tasks/req-cuda-gemm-test.md`.
+
+Notes:
+- `square` suite records per `(shape,dtype)`: 5 cases (`AB`, `ATB_view`, `ABT_view`, `ATB_copyA`, `ABT_copyB`).
+- `nonsquare_atb` suite records per `(shape,dtype)`: 2 cases (`ATB_view`, `ATB_copyA`).
+- `nonsquare_abt` suite records per `(shape,dtype)`: 2 cases (`ABT_view`, `ABT_copyB`).
+
+**Dtype keys (currently supported by this repo):**
+- `fp16_fp16_fp16`
+- `bf16_bf16_bf16`
+- `fp32_fp32_fp32`
+- `fp32_fp32_fp32_tf32`
+- `int8_int8_int32`
+
+**Dtype pairs mentioned in the requirement but not currently implemented (scope decision required):**
+- `int8`↔`fp16` mixed (`matmul(int8, fp16)` and `matmul(fp16, int8)`)
+- `fp16`↔`fp32` mixed (`matmul(fp16, fp32)` and `matmul(fp32, fp16)`)
+
+**Sweep groups**
+
+1) **Square baseline (“square-ish”)**
+   - Suites: `square`
+   - Shapes: `512, 1024, 2048, 4096` (`M=N=K`)
+   - Dtypes: all supported dtypes above (unless narrowed)
+
+2) **Suggested initial sweep: cache-resident**
+   - Suites:
+     - `square` (square shapes)
+     - `nonsquare_atb` + `nonsquare_abt` (aspect-ratio shapes)
+   - Shapes:
+     - fp16/bf16 square: `1024, 1536, 2048` (`M=N=K`)
+     - fp32 square: `768, 1024, 1280, 1536` (`M=N=K`)
+     - fp16/bf16 aspect ratio probes (non-square):
+       - `(4096, 1024, 1024)`
+       - `(1024, 4096, 1024)`
+       - `(1024, 1024, 4096)`
+   - Dtypes:
+     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`
+     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`
+
+3) **Suggested initial sweep: cache-spill**
+   - Suites:
+     - `square` (square shapes)
+     - `nonsquare_atb` + `nonsquare_abt` (stress shapes)
+   - Shapes:
+     - fp16/bf16 square boundary: `(2304, 2304, 2304)`
+     - fp16/bf16 non-square:
+       - copy-A stress: `(3072, 2048, 2048)` (run in `nonsquare_atb`)
+       - copy-B stress: `(2048, 3072, 2048)` (run in `nonsquare_abt`)
+       - definitely spill: `(8192, 1024, 1024)` (run in both nonsquare suites)
+     - fp32 square boundary: `(1664, 1664, 1664)`
+     - fp32 non-square:
+       - copy-A stress: `(2304, 1536, 1536)` (run in `nonsquare_atb`)
+       - copy-B stress: `(1536, 2304, 1536)` (run in `nonsquare_abt`)
+   - Dtypes:
+     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`
+     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`
+
+4) **Safety control set (dims <= 1000)**
+   - Suites: `square`, `nonsquare_atb`, `nonsquare_abt`
+   - Shapes:
+     - square: `512, 768, 896, 960, 992, 1000` (`M=N=K`)
+     - non-square:
+       - `(992, 256, 256)`
+       - `(256, 992, 256)`
+       - `(256, 256, 992)`
+       - `(960, 320, 640)`
+   - Dtypes: at least `fp16_fp16_fp16`, `bf16_bf16_bf16`, `fp32_fp32_fp32` (and optionally `fp32_fp32_fp32_tf32`, `int8_int8_int32` if supported/desired)
+
+### 2.3 Sequence diagram (steady-state usage)
 
 ```mermaid
 sequenceDiagram
@@ -94,4 +215,3 @@ sequenceDiagram
 - [ ] **Validate completeness** Add a post-run check: verify every manifest configuration exists in `results.json` (fail fast if missing).
 - [ ] **Add tests** Unit test manifest expansion and completeness checks; integration smoke can continue to gate on `cuda13` + GPU presence.
 - [ ] **Document runbook** Add a short “How to run full sweep” section (expected runtime; output tree; how to resume).
-
