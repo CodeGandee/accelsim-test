@@ -677,6 +677,24 @@ void gemm_transpose_bench(nvbench::state &state)
     const GemmPlanOptions plan_opts{};
     const CublasLtGemmPlan plan(GemmDims{m, n, k}, dtype.types, a_dims, b_dims, c_dims, trans_a, trans_b, plan_opts);
 
+    // Persist the selected cuBLASLt algorithm configuration for JSON export/reporting.
+    {
+      const auto &algo = plan.SelectedAlgo();
+      auto &s          = state.add_summary("accelsim/cublaslt/algo");
+      s.set_string("hide", "");
+      s.set_int64("id", static_cast<std::int64_t>(algo.id));
+      s.set_int64("tile_id", static_cast<std::int64_t>(algo.tile_id));
+      s.set_int64("splitk_num", static_cast<std::int64_t>(algo.splitk_num));
+      s.set_int64("reduction_scheme", static_cast<std::int64_t>(algo.reduction_scheme));
+      s.set_int64("cta_swizzling", static_cast<std::int64_t>(algo.cta_swizzling));
+      s.set_int64("custom_option", static_cast<std::int64_t>(algo.custom_option));
+      s.set_int64("stages_id", static_cast<std::int64_t>(algo.stages_id));
+      s.set_int64("inner_shape_id", static_cast<std::int64_t>(algo.inner_shape_id));
+      s.set_int64("cluster_shape_id", static_cast<std::int64_t>(algo.cluster_shape_id));
+      s.set_int64("required_workspace_bytes", static_cast<std::int64_t>(algo.required_workspace_bytes));
+      s.set_int64("waves_count", static_cast<std::int64_t>(algo.waves_count));
+    }
+
     // One untimed run for correctness verification (avoid polluting profiler runs).
     if (!state.get_run_once())
     {

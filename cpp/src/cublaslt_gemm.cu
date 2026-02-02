@@ -15,6 +15,15 @@ void set_layout_order(cublasLtMatrixLayout_t layout, cublasLtOrder_t order)
                             "cublasLtMatrixLayoutSetAttribute(ORDER)");
 }
 
+template <typename T>
+bool try_get_algo_attr(const cublasLtMatmulAlgo_t &algo, cublasLtMatmulAlgoConfigAttributes_t attr, T &out)
+{
+  std::size_t written = 0;
+  const cublasStatus_t st =
+    cublasLtMatmulAlgoConfigGetAttribute(&algo, attr, &out, sizeof(out), &written);
+  return st == CUBLAS_STATUS_SUCCESS && written == sizeof(out);
+}
+
 } // namespace
 
 CublasLtGemmPlan::CublasLtGemmPlan(const GemmDims &dims,
@@ -78,6 +87,20 @@ CublasLtGemmPlan::CublasLtGemmPlan(const GemmDims &dims,
     throw std::runtime_error("cublasLtMatmulAlgoGetHeuristic returned no algorithms.");
   }
   m_algo = heur.algo;
+
+  // Record selected algorithm config for downstream reporting.
+  // Note: Some attributes may not be queryable for every algorithm; keep best-effort defaults.
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_ID, m_algo_config.id);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_TILE_ID, m_algo_config.tile_id);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_SPLITK_NUM, m_algo_config.splitk_num);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, m_algo_config.reduction_scheme);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, m_algo_config.cta_swizzling);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, m_algo_config.custom_option);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_STAGES_ID, m_algo_config.stages_id);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_INNER_SHAPE_ID, m_algo_config.inner_shape_id);
+  (void)try_get_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CLUSTER_SHAPE_ID, m_algo_config.cluster_shape_id);
+  m_algo_config.required_workspace_bytes = static_cast<std::size_t>(heur.workspaceSize);
+  m_algo_config.waves_count              = static_cast<std::int32_t>(heur.wavesCount);
 
   CheckCuda(cudaMalloc(&m_workspace, m_workspace_bytes), "cudaMalloc(workspace)");
 }

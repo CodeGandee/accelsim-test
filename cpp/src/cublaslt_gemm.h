@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace accelsim::gemm
@@ -38,6 +39,21 @@ struct GemmPlanOptions
   cublasLtOrder_t order{CUBLASLT_ORDER_ROW};
 };
 
+struct CublasLtAlgoConfig
+{
+  std::int32_t id{};
+  std::uint32_t tile_id{};
+  std::int32_t splitk_num{};
+  std::uint32_t reduction_scheme{};
+  std::uint32_t cta_swizzling{};
+  std::uint32_t custom_option{};
+  std::uint32_t stages_id{};
+  std::uint16_t inner_shape_id{};
+  std::uint16_t cluster_shape_id{};
+  std::size_t required_workspace_bytes{};
+  std::int32_t waves_count{};
+};
+
 class CublasLtGemmPlan
 {
 public:
@@ -64,6 +80,7 @@ public:
            const void *beta) const;
 
   [[nodiscard]] std::size_t WorkspaceBytes() const { return m_workspace_bytes; }
+  [[nodiscard]] const CublasLtAlgoConfig &SelectedAlgo() const { return m_algo_config; }
 
   static void CheckCuda(cudaError_t status, const char *what);
   static void CheckLt(cublasStatus_t status, const char *what);
@@ -75,6 +92,7 @@ private:
   cublasLtMatrixLayout_t m_b_layout{};
   cublasLtMatrixLayout_t m_c_layout{};
   cublasLtMatmulAlgo_t m_algo{};
+  CublasLtAlgoConfig m_algo_config{};
 
   void *m_workspace{};
   std::size_t m_workspace_bytes{};

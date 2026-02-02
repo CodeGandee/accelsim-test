@@ -58,6 +58,7 @@ def test_generate_report_contains_required_tables() -> None:
     report_md = generate_report(results)
     assert "## Square Suite" in report_md
     assert "timed_ms_AB" in report_md
+    assert "algo_id_AB" in report_md
     assert "slow_ATB_view_vs_AB" in report_md
     assert "## Non-square Suite" in report_md
     assert "over_ATB_copyA_vs_view" in report_md

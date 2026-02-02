@@ -38,6 +38,11 @@ def _format_float(v: float | None) -> str:
         return "NA"
     return f"{v:.3f}"
 
+def _format_int(v: int | None) -> str:
+    if v is None:
+        return "NA"
+    return str(v)
+
 
 def _dtype_key(dtype: dict[str, Any]) -> tuple[str, str, str, str, str]:
     return (
@@ -138,10 +143,15 @@ def generate_report(results: dict[str, Any]) -> str:
         "dtype_pair",
         "flop_count",
         "timed_ms_AB",
+        "algo_id_AB",
         "timed_ms_ATB_view",
+        "algo_id_ATB_view",
         "timed_ms_ABT_view",
+        "algo_id_ABT_view",
         "timed_ms_ATB_copyA",
+        "algo_id_ATB_copyA",
         "timed_ms_ABT_copyB",
+        "algo_id_ABT_copyB",
         "slow_ATB_view_vs_AB",
         "slow_ABT_view_vs_AB",
         "over_ATB_copyA_vs_view",
@@ -173,6 +183,14 @@ def generate_report(results: dict[str, Any]) -> str:
                 return None
             return rec.get("timing", {}).get("gpu_time_ms")
 
+        def algo_id_case(case_name: str) -> int | None:
+            rec = by_case_name.get(case_name)
+            if rec is None:
+                return None
+            algo = rec.get("cublaslt", {}).get("algo", {})
+            v = algo.get("id")
+            return int(v) if isinstance(v, int) else None
+
         ab = time_ms_case("AB")
         atb_view = time_ms_case("ATB_view")
         abt_view = time_ms_case("ABT_view")
@@ -192,10 +210,15 @@ def generate_report(results: dict[str, Any]) -> str:
                     f"`{dtype_label}`",
                     str(flop_count),
                     _format_float(ab),
+                    _format_int(algo_id_case("AB")),
                     _format_float(atb_view),
+                    _format_int(algo_id_case("ATB_view")),
                     _format_float(abt_view),
+                    _format_int(algo_id_case("ABT_view")),
                     _format_float(atb_copy),
+                    _format_int(algo_id_case("ATB_copyA")),
                     _format_float(abt_copy),
+                    _format_int(algo_id_case("ABT_copyB")),
                     _format_float(_safe_ratio(atb_view, ab)),
                     _format_float(_safe_ratio(abt_view, ab)),
                     _format_float(_safe_ratio(atb_copy, atb_view)),
@@ -218,10 +241,14 @@ def generate_report(results: dict[str, Any]) -> str:
         "dtype_pair",
         "flop_count",
         "timed_ms_ATB_view",
+        "algo_id_ATB_view",
         "timed_ms_ATB_copyA",
+        "algo_id_ATB_copyA",
         "over_ATB_copyA_vs_view",
         "timed_ms_ABT_view",
+        "algo_id_ABT_view",
         "timed_ms_ABT_copyB",
+        "algo_id_ABT_copyB",
         "over_ABT_copyB_vs_view",
         "verify",
     ]
@@ -248,6 +275,14 @@ def generate_report(results: dict[str, Any]) -> str:
                 return None
             return rec.get("timing", {}).get("gpu_time_ms")
 
+        def algo_id_suite_case(suite: str, case: str) -> int | None:
+            rec = by_suite_case.get((suite, case))
+            if rec is None:
+                return None
+            algo = rec.get("cublaslt", {}).get("algo", {})
+            v = algo.get("id")
+            return int(v) if isinstance(v, int) else None
+
         atb_view = time_ms_suite_case("nonsquare_atb", "ATB_view")
         atb_copy = time_ms_suite_case("nonsquare_atb", "ATB_copyA")
         abt_view = time_ms_suite_case("nonsquare_abt", "ABT_view")
@@ -267,10 +302,14 @@ def generate_report(results: dict[str, Any]) -> str:
                     f"`{dtype_label}`",
                     str(flop_count),
                     _format_float(atb_view),
+                    _format_int(algo_id_suite_case("nonsquare_atb", "ATB_view")),
                     _format_float(atb_copy),
+                    _format_int(algo_id_suite_case("nonsquare_atb", "ATB_copyA")),
                     _format_float(_safe_ratio(atb_copy, atb_view)),
                     _format_float(abt_view),
+                    _format_int(algo_id_suite_case("nonsquare_abt", "ABT_view")),
                     _format_float(abt_copy),
+                    _format_int(algo_id_suite_case("nonsquare_abt", "ABT_copyB")),
                     _format_float(_safe_ratio(abt_copy, abt_view)),
                     verify,
                 ]
@@ -288,6 +327,7 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `dtype_pair`: Normalized dtype description `A,B->C (compute,math_mode)`.")
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*N*N*N`).")
     lines.append("- `timed_ms_*`: Mean GPU time in milliseconds from the NVBench timing run (GEMM-only; transpose materialization is outside timing).")
+    lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for that case (from `cublasLtMatmulAlgoGetHeuristic`).")
     lines.append("- `slow_*_vs_AB`: Slowdown vs baseline `AB`, computed as `timed_ms_case / timed_ms_AB`.")
     lines.append("- `over_*_vs_view`: Materialization overhead factor, computed as `timed_ms_copy / timed_ms_view`.")
     lines.append("- `verify`: `pass` if all cases in the row passed verification; otherwise `fail`.")
@@ -300,6 +340,7 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*M*N*K`) used for row-consistency across compared cases.")
     lines.append("- `timed_ms_ATB_*`: Times for the transpose-A suite (`nonsquare_atb`): `ATB_view` and `ATB_copyA`.")
     lines.append("- `timed_ms_ABT_*`: Times for the transpose-B suite (`nonsquare_abt`): `ABT_view` and `ABT_copyB`.")
+    lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for the corresponding suite/case; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
     lines.append("- `over_*_vs_view`: Materialization overhead factor, computed as `timed_ms_copy / timed_ms_view` for the corresponding direction.")
     lines.append("- `verify`: `pass` if all present non-square records for the row passed verification; otherwise `fail`.")
     lines.append("")

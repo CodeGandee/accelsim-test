@@ -201,6 +201,7 @@ def normalize_nvbench_results(
             v_abs = summaries.get("accelsim/verification/max_abs_error")
             v_rel = summaries.get("accelsim/verification/max_rel_error")
             v_details = summaries.get("accelsim/verification/details")
+            algo_summ = summaries.get("accelsim/cublaslt/algo")
 
             verification_status = "pass"
             if v_pass is not None:
@@ -233,6 +234,34 @@ def normalize_nvbench_results(
                 if isinstance(dv, str):
                     details = dv
 
+            algo_obj: dict[str, int] | None = None
+            if algo_summ is not None:
+                allowed = {
+                    "id",
+                    "tile_id",
+                    "splitk_num",
+                    "reduction_scheme",
+                    "cta_swizzling",
+                    "custom_option",
+                    "stages_id",
+                    "inner_shape_id",
+                    "cluster_shape_id",
+                    "required_workspace_bytes",
+                    "waves_count",
+                }
+                extracted: dict[str, int] = {}
+                for k, v in algo_summ.data.items():
+                    if k not in allowed:
+                        continue
+                    if isinstance(v, bool):
+                        continue
+                    if isinstance(v, int):
+                        extracted[k] = v
+                    elif isinstance(v, float) and v.is_integer():
+                        extracted[k] = int(v)
+                if "id" in extracted:
+                    algo_obj = extracted
+
             record = {
                 "suite": suite,
                 "case": case,
@@ -246,6 +275,7 @@ def normalize_nvbench_results(
                     "nvbench_raw": None,
                 },
                 "flop_count": shape.flop_count,
+                **({} if algo_obj is None else {"cublaslt": {"algo": algo_obj}}),
                 "ratios": {},
                 "verification": {
                     "status": verification_status,

@@ -154,6 +154,31 @@
           "minimum": 1,
           "description": "Must be 2*m*n*k for all records (FR-008 / FR-008b)."
         },
+        "cublaslt": {
+          "type": "object",
+          "required": ["algo"],
+          "properties": {
+            "algo": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "type": "integer" },
+                "tile_id": { "type": "integer" },
+                "splitk_num": { "type": "integer" },
+                "reduction_scheme": { "type": "integer" },
+                "cta_swizzling": { "type": "integer" },
+                "custom_option": { "type": "integer" },
+                "stages_id": { "type": "integer" },
+                "inner_shape_id": { "type": "integer" },
+                "cluster_shape_id": { "type": "integer" },
+                "required_workspace_bytes": { "type": "integer", "minimum": 0 },
+                "waves_count": { "type": "integer" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "ratios": {
           "type": "object",
           "properties": {
