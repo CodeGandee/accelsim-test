@@ -196,3 +196,55 @@ sequenceDiagram
 - [ ] **Generate single-table results report** Emit `all_timings.md` that lists all records (suite, case, M/N/K, dtype, `cublaslt.algo.id` and optionally other `cublaslt.algo.*` fields, `timed_ms`) in one Markdown table.
 - [ ] **Add tests** Unit test manifest expansion and completeness checks; integration smoke can continue to gate on `cuda13` + GPU presence.
 - [ ] **Document runbook** Add a short “How to run full sweep” section (expected runtime; output tree; how to resume).
+
+## Appendix
+
+### A. Final Report Template (placeholders)
+
+This is the intended shape of the final outputs. All values below are placeholders.
+
+#### `report.md` (summary)
+
+```md
+# GEMM Transpose Full Sweep Report
+
+- Run ID: `<run_id>`
+- Date (UTC): `<YYYY-MM-DDTHH:MM:SSZ>`
+- Git: `<branch>` @ `<commit>` (dirty: `<true|false>`)
+- GPU: `<device_name>` (`<sm>`), driver `<driver_version>`
+- CUDA toolkit: `<toolkit_version>`
+- Pixi env: `cuda13`
+- NVBench: `<nvbench_version>` (source: `extern/orphan/nvbench`)
+- NVBench flags: `--stopping-criterion stdrel --min-time 0.5 --max-noise 0.5 --min-samples 10 --devices 0`
+
+## Summary Tables (measured-time only)
+
+### Square Suite
+
+| suite | N | dtype_pair | flop_count | timed_ms_AB | algo_id_AB | timed_ms_ATB_view | algo_id_ATB_view | timed_ms_ABT_view | algo_id_ABT_view | timed_ms_ATB_copyA | algo_id_ATB_copyA | timed_ms_ABT_copyB | algo_id_ABT_copyB | verify |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| square | `<N>` | `<A,B->C (compute,math_mode)>` | `<2*N*N*N>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<pass|fail>` |
+
+### Non-square Suites (FLOP-matched)
+
+| suite | M | N | K | dtype_pair | flop_count | timed_ms_ATB_view | algo_id_ATB_view | timed_ms_ATB_copyA | algo_id_ATB_copyA | timed_ms_ABT_view | algo_id_ABT_view | timed_ms_ABT_copyB | algo_id_ABT_copyB | verify |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| non_square | `<M>` | `<N>` | `<K>` | `<A,B->C (compute,math_mode)>` | `<2*M*N*K>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<pass|fail>` |
+
+## Column Definitions
+
+... (keep in sync with generator) ...
+```
+
+#### `all_timings.md` (single giant table)
+
+```md
+# GEMM Transpose Full Sweep Timings (All Records)
+
+- Run ID: `<run_id>`
+- Source: `<path/to/results.json>`
+
+| suite | case | M | N | K | dtype_pair | timed_ms | samples | verify | algo_id | tile_id | splitk_num | stages_id |
+|---|---|---:|---:|---:|---|---:|---:|---|---:|---:|---:|---:|
+| `<square|nonsquare_atb|nonsquare_abt>` | `<AB|ATB_view|...>` | `<M>` | `<N>` | `<K>` | `<A,B->C (compute,math_mode)>` | `<ms>` | `<n>` | `<pass|fail>` | `<id>` | `<tile>` | `<splitk>` | `<stages>` |
+```
