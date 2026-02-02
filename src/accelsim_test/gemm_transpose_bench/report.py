@@ -117,16 +117,16 @@ def generate_report(results: dict[str, Any]) -> str:
         "N",
         "dtype_pair",
         "flop_count",
-        "timed_ms_AB",
-        "algo_id_AB",
-        "timed_ms_ATB_view",
-        "algo_id_ATB_view",
-        "timed_ms_ABT_view",
-        "algo_id_ABT_view",
-        "timed_ms_ATB_copyA",
-        "algo_id_ATB_copyA",
-        "timed_ms_ABT_copyB",
-        "algo_id_ABT_copyB",
+        "A@B(ms)",
+        "A@B(algo_id)",
+        "A.T@B(ms)",
+        "A.T@B(algo_id)",
+        "A@B.T(ms)",
+        "A@B.T(algo_id)",
+        "copy(A.T)@B(ms)",
+        "copy(A.T)@B(algo_id)",
+        "A@copy(B.T)(ms)",
+        "A@copy(B.T)(algo_id)",
         "verify",
     ]
     lines.append("| " + " | ".join(header) + " |")
@@ -207,14 +207,14 @@ def generate_report(results: dict[str, Any]) -> str:
         "K",
         "dtype_pair",
         "flop_count",
-        "timed_ms_ATB_view",
-        "algo_id_ATB_view",
-        "timed_ms_ATB_copyA",
-        "algo_id_ATB_copyA",
-        "timed_ms_ABT_view",
-        "algo_id_ABT_view",
-        "timed_ms_ABT_copyB",
-        "algo_id_ABT_copyB",
+        "A.T@B(ms)",
+        "A.T@B(algo_id)",
+        "copy(A.T)@B(ms)",
+        "copy(A.T)@B(algo_id)",
+        "A@B.T(ms)",
+        "A@B.T(algo_id)",
+        "A@copy(B.T)(ms)",
+        "A@copy(B.T)(algo_id)",
         "verify",
     ]
     lines.append("| " + " | ".join(header2) + " |")
@@ -289,8 +289,8 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `N`: Matrix size for square shapes (`M=N=K=N`).")
     lines.append("- `dtype_pair`: Normalized dtype description `A,B->C (compute,math_mode)`.")
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*N*N*N`).")
-    lines.append("- `timed_ms_*`: Mean GPU time in milliseconds from the NVBench timing run (GEMM-only; transpose materialization is outside timing).")
-    lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for that case (from `cublasLtMatmulAlgoGetHeuristic`).")
+    lines.append("- `A@B(ms)` etc: Mean GPU time in milliseconds from the NVBench timing run (GEMM-only; transpose materialization is outside timing).")
+    lines.append("- `A@B(algo_id)` etc: cuBLASLt algorithm ID selected for that case (from `cublasLtMatmulAlgoGetHeuristic`).")
     lines.append("- `verify`: `pass` if all cases in the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("### Non-square Suite")
@@ -299,9 +299,9 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `M,N,K`: Logical GEMM dimensions for `C[M,N] = A[M,K] @ B[K,N]` (FLOP-matched across non-square cases).")
     lines.append("- `dtype_pair`: Normalized dtype description `A,B->C (compute,math_mode)`.")
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*M*N*K`) used for row-consistency across compared cases.")
-    lines.append("- `timed_ms_ATB_*`: Times for the transpose-A suite (`nonsquare_atb`): `ATB_view` and `ATB_copyA`.")
-    lines.append("- `timed_ms_ABT_*`: Times for the transpose-B suite (`nonsquare_abt`): `ABT_view` and `ABT_copyB`.")
-    lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for the corresponding suite/case; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
+    lines.append("- `A.T@B(ms)` / `copy(A.T)@B(ms)`: Times for transpose-A suite (`nonsquare_atb`).")
+    lines.append("- `A@B.T(ms)` / `A@copy(B.T)(ms)`: Times for transpose-B suite (`nonsquare_abt`).")
+    lines.append("- `...(algo_id)`: cuBLASLt algorithm ID selected for that record; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
     lines.append("- `verify`: `pass` if all present non-square records for the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("Notes:")
