@@ -26,7 +26,7 @@ Success means we can run a single “full sweep” entry point that:
 3) Produces a single output directory under `tmp/` containing:
    - raw NVBench JSON outputs,
    - normalized `results.json` (schema-valid),
-   - a consolidated `report.md` showing **only measured times** (and other metadata like `algo_id_*`).
+   - a consolidated `report.md` showing **only measured times** (and other metadata like selected `algo_id`).
 4) Produces an additional Markdown report that lists **all measured timings** for **all sweep records** in a **single** “giant table” (one Markdown file), and includes the **chosen cuBLASLt algorithm** for each row (at minimum `cublaslt.algo.id`), for auditability and downstream copy/paste.
 
 ## 2. Implementation Approach
@@ -68,7 +68,7 @@ These settings are the single source of truth for “full sweep” behavior (wha
 - Warmup / timed iterations per single configuration (NVBench “cold” measurement mode):
   - Warmup kernel launches: **1** (not included in reported statistics).
   - Timed kernel launches: **adaptive**, but **at least 20**, and continues until the stopping criterion is satisfied (min total GPU time ≥ `--min-time` and relative noise ≤ `--max-noise`).
-  - Reported `timed_ms_*` is the **mean** of the timed samples for that configuration.
+  - Reported `A@B(ms)` / `A.T@B(ms)` / ... values are the **mean** of the timed samples for that configuration.
 
 #### Output directory layout
 
@@ -77,7 +77,7 @@ These settings are the single source of truth for “full sweep” behavior (wha
   - `raw/nvbench_timing_<suite>.json` per timing chunk
   - `results.json` (merged, schema-valid)
   - `report.md` (measured-time-only tables)
-  - `all_timings.md` (giant table listing all records and their measured `timed_ms` plus the selected cuBLASLt algorithm, derived from `results.json`)
+  - `all_timings.md` (giant table listing all records and their measured time plus the selected cuBLASLt algorithm, derived from `results.json`)
 
 #### Sweep manifest (shapes × dtypes × suites)
 
@@ -221,13 +221,13 @@ This is the intended shape of the final outputs. All values below are placeholde
 
 ### Square Suite
 
-| suite | N | dtype_pair | flop_count | timed_ms_AB | algo_id_AB | timed_ms_ATB_view | algo_id_ATB_view | timed_ms_ABT_view | algo_id_ABT_view | timed_ms_ATB_copyA | algo_id_ATB_copyA | timed_ms_ABT_copyB | algo_id_ABT_copyB | verify |
+| suite | N | dtype_pair | flop_count | A@B(ms) | A@B(algo_id) | A.T@B(ms) | A.T@B(algo_id) | A@B.T(ms) | A@B.T(algo_id) | copy(A.T)@B(ms) | copy(A.T)@B(algo_id) | A@copy(B.T)(ms) | A@copy(B.T)(algo_id) | verify |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | square | `<N>` | `<A,B->C (compute,math_mode)>` | `<2*N*N*N>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<pass|fail>` |
 
 ### Non-square Suites (FLOP-matched)
 
-| suite | M | N | K | dtype_pair | flop_count | timed_ms_ATB_view | algo_id_ATB_view | timed_ms_ATB_copyA | algo_id_ATB_copyA | timed_ms_ABT_view | algo_id_ABT_view | timed_ms_ABT_copyB | algo_id_ABT_copyB | verify |
+| suite | M | N | K | dtype_pair | flop_count | A.T@B(ms) | A.T@B(algo_id) | copy(A.T)@B(ms) | copy(A.T)@B(algo_id) | A@B.T(ms) | A@B.T(algo_id) | A@copy(B.T)(ms) | A@copy(B.T)(algo_id) | verify |
 |---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | non_square | `<M>` | `<N>` | `<K>` | `<A,B->C (compute,math_mode)>` | `<2*M*N*K>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<ms>` | `<id>` | `<pass|fail>` |
 
@@ -244,7 +244,7 @@ This is the intended shape of the final outputs. All values below are placeholde
 - Run ID: `<run_id>`
 - Source: `<path/to/results.json>`
 
-| suite | case | M | N | K | dtype_pair | timed_ms | samples | verify | algo_id | tile_id | splitk_num | stages_id |
+| suite | case | M | N | K | dtype_pair | time(ms) | samples | verify | algo_id | tile_id | splitk_num | stages_id |
 |---|---|---:|---:|---:|---|---:|---:|---|---:|---:|---:|---:|
 | `<square|nonsquare_atb|nonsquare_abt>` | `<AB|ATB_view|...>` | `<M>` | `<N>` | `<K>` | `<A,B->C (compute,math_mode)>` | `<ms>` | `<n>` | `<pass|fail>` | `<id>` | `<tile>` | `<splitk>` | `<stages>` |
 ```
