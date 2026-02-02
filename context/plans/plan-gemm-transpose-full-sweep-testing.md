@@ -62,7 +62,7 @@ These settings are the single source of truth for “full sweep” behavior (wha
 - Default NVBench flags (tunable, but must be recorded into `results.json.run.settings.nvbench`):
   - `--stopping-criterion stdrel`
   - `--min-time 0.5`
-  - `--max-noise 0.5`
+  - `--max-noise 0.3`
   - `--min-samples 20`
   - `--devices 0`
 - Warmup / timed iterations per single configuration (NVBench “cold” measurement mode):
@@ -215,7 +215,7 @@ This is the intended shape of the final outputs. All values below are placeholde
 - CUDA toolkit: `<toolkit_version>`
 - Pixi env: `cuda13`
 - NVBench: `<nvbench_version>` (source: `extern/orphan/nvbench`)
-- NVBench flags: `--stopping-criterion stdrel --min-time 0.5 --max-noise 0.5 --min-samples 20 --devices 0`
+- NVBench flags: `--stopping-criterion stdrel --min-time 0.5 --max-noise 0.3 --min-samples 20 --devices 0`
 
 ## Summary Tables (measured-time only)
 
