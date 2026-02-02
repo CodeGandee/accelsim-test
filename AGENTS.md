@@ -17,6 +17,7 @@ This is a mixed Python/C++ project:
 - `extern/`: third-party code.
   - `extern/tracked/`: git submodules pinned in `.gitmodules` (reproducible).
   - `extern/orphan/`: local-only clones (git-ignored).
+    - `extern/orphan/nvbench/`: NVBench source tree (primary CUDA benchmarking library for this repo).
 - `context/`: project knowledge base (design notes, plans, issues, logs).
 - `tmp/`: scratch space for experiments; do not rely on it for production inputs.
 
@@ -36,6 +37,11 @@ The C++ subproject uses Conan + CMake (run from `cpp/`):
 - `conan install . -b missing`
 - `cmake --preset conan-release`
 - `cmake --build --preset conan-release -j`
+
+Benchmarking:
+- Prefer **NVBench** for CUDA benchmarking (primary measurement harness in this repo).
+- Be rigorous: use NVBench warmup + statistical stopping criteria (`--min-time`, `--max-noise`) and avoid ad-hoc timing loops.
+- NVBench source is expected at `extern/orphan/nvbench/` (use it directly when integrating benchmarks).
 
 Profiling tools:
 - `nsys`: NVIDIA Nsight Systems (available on the host system).
@@ -65,3 +71,10 @@ PRs should include:
 - What changed and why (link issues/tasks if applicable).
 - How to reproduce/verify (commands + expected output).
 - Notes when updating submodules (new commit SHA/branch and reason).
+
+## Active Technologies
+- Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling) (002-gemm-transpose-bench)
+- Files (structured JSON/CSV export + Markdown report + per-case `*.ncu-rep` artifacts) (002-gemm-transpose-bench)
+
+## Recent Changes
+- 002-gemm-transpose-bench: Added Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling)
