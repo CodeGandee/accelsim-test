@@ -18,20 +18,31 @@ pixi install
 
 ## Build the C++ benchmark (Conan + CMake, inside Pixi `cuda13`)
 
-Planned: this will be wrapped by a Pixi task, but the underlying flow is:
+This is wrapped by a Pixi task:
 
 ```bash
 cd /data1/huangzhe/code/accelsim-test
-pixi run -e cuda13 -- bash -lc 'cd cpp && conan profile detect --force && conan install . -b missing && cmake --preset conan-release && cmake --build --preset conan-release -j'
+pixi run -e cuda13 gemm-transpose-build
 ```
+
+Notes:
+- The build task forces `CUDAHOSTCXX=/usr/bin/g++` to avoid NVCC + libstdc++ header incompatibilities seen with newer Conda toolchains.
+- NVBench is expected at `/data1/huangzhe/code/accelsim-test/extern/orphan/nvbench` and the build fails fast if it is missing.
 
 ## Run a timing sweep (no profiler)
 
-Planned primary entrypoint (Python orchestrator):
+Primary entrypoint (Python orchestrator):
 
 ```bash
 cd /data1/huangzhe/code/accelsim-test
 pixi run -e cuda13 -- python -m accelsim_test.gemm_transpose_bench timing --out-dir /data1/huangzhe/code/accelsim-test/tmp/gemm_transpose_out --suite all --dtype all
+```
+
+Equivalent (via Pixi task wrapper):
+
+```bash
+cd /data1/huangzhe/code/accelsim-test
+pixi run -e cuda13 gemm-transpose -- timing --out-dir /data1/huangzhe/code/accelsim-test/tmp/gemm_transpose_out --suite all --dtype all
 ```
 
 Expected outputs:

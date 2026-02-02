@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "igamenovoer", email = "igamenovoer@xx.com"}]
-dependencies = ["scipy>=1.17.0,<2", "mdutils>=1.8.1,<2", "ruff>=0.14.14,<0.15", "mkdocs-material>=9.7.1,<10", "mypy>=1.19.1,<2", "attrs>=25.4.0,<26", "omegaconf>=2.3.0,<3", "imageio>=2.37.2,<3", "hydra-core>=1.3.2,<2"]
+dependencies = ["scipy>=1.17.0,<2", "mdutils>=1.8.1,<2", "ruff>=0.14.14,<0.15", "mkdocs-material>=9.7.1,<10", "mypy>=1.19.1,<2", "attrs>=25.4.0,<26", "omegaconf>=2.3.0,<3", "imageio>=2.37.2,<3", "hydra-core>=1.3.2,<2", "jsonschema>=4.25.0,<5", "pytest>=8.4.0,<9", "types-jsonschema"]
 name = "accelsim-test"
 requires-python = ">= 3.11"
 version = "0.1.0"
@@ -24,6 +24,11 @@ accelsim-build = "bash scripts/accelsim/build.sh"
 accelsim-smoke = "bash scripts/accelsim/smoke.sh"
 # Run Accel-Sim upstream short functional tests (downloads traces + runs trace-driven sims; can take a while).
 accelsim-short-tests = "bash scripts/accelsim/short-tests.sh"
+pytest = "pytest -q"
+
+# GEMM transpose benchmark (NVBench + cuBLASLt)
+gemm-transpose-build = "bash -lc 'export CUDAHOSTCXX=/usr/bin/g++; cd cpp && conan profile detect --force && conan install . -b missing && cmake --preset conan-release && cmake --build --preset conan-release -j --target gemm_transpose_bench'"
+gemm-transpose = "python -m accelsim_test.gemm_transpose_bench"
 
 # CUDA build env sanity check (uses the `cuda13` environment)
 cuda13-check-configure = { cmd = "bash -lc 'cd tmp/build-check && cmake -G Ninja -S . -B build -DCMAKE_CUDA_COMPILER=$CONDA_PREFIX/bin/nvcc -DCUDAToolkit_ROOT=$CONDA_PREFIX'", env = { CUDACXX = "$CONDA_PREFIX/bin/nvcc" } }
@@ -33,6 +38,7 @@ cuda13-build-check = "bash -lc 'cd tmp/build-check && ./build-and-run.sh'"
 
 [tool.pixi.dependencies]
 python = "3.12.*"
+clang-tools = ">=21.1.8,<22"
 
 [tool.pixi.feature.accelsim.dependencies]
 bison = "*"
@@ -68,13 +74,23 @@ ninja = "*"
 cxx-compiler = "*"
 make = "*"
 pkg-config = "*"
+conan = "*"
 cuda-toolkit = { version = "13.0.*", channel = "nvidia" }
 cuda-nvcc = { version = "13.0.*", channel = "nvidia" }
 cudnn = { channel = "nvidia" }
+cuda-nvtx = ">=13.0.85,<14"
 
 [tool.pixi.environments]
 default = { features = [], solve-group = "default" }
 accelsim = { features = ["accelsim"], solve-group = "default" }
 cuda13 = { features = ["cuda13"], solve-group = "cuda13" }
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["integration: requires CUDA GPU and built benchmark"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["extern", "magic-context", "cpp/test_package", "tmp", ".pixi"]

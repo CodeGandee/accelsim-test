@@ -17,7 +17,7 @@ Required NVBench options used by this project:
 NVBench axes (contracted names and types):
 - `suite` (string): `square` | `nonsquare_atb` | `nonsquare_abt`
 - `case` (string): `AB` | `ATB_view` | `ABT_view` | `ATB_copyA` | `ABT_copyB` (subset depends on suite)
-- `m` (int), `n` (int), `k` (int): logical GEMM dimensions for `C[m,n] = A[m,k] @ B[k,n]`
+- `shape` (string): logical GEMM dimensions encoded as `MxNxK` for `C[M,N] = A[M,K] @ B[K,N]` (used to avoid correlated `m/n/k` cartesian products in sweeps)
 - `dtype` (string): canonical dtype pair key (e.g., `fp16_fp16_fp16`, `bf16_bf16_bf16`, `fp32_fp32_fp32`, `int8_int8_int32`) as defined by the Python config layer
 - `math_mode` (string): e.g., `default`, `tf32` (only meaningful for fp32 where supported)
 
@@ -40,7 +40,7 @@ Inputs:
 - `--suite <square|nonsquare_atb|nonsquare_abt|all>` (optional, default `all`)
 - `--dtype <key|all>` (optional, default `all`)
 - `--shape-set <name|all>` (optional): named shape sets per `/data1/huangzhe/code/accelsim-test/context/tasks/req-cuda-gemm-test.md`
-- `--nvbench-args "<string>"` (optional): pass-through NVBench args (e.g., `--min-time=1 --max-noise=0.5 --devices=0`)
+- `--nvbench-args "<string>"` (optional): pass-through NVBench args (e.g., `--min-time 1 --max-noise 0.5 --devices 0`)
 
 Outputs:
 - `raw/nvbench_timing.json`: NVBench JSON output.

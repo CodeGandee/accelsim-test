@@ -13,8 +13,13 @@ venv.bak/
 .ruff_cache/
 *.swp
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
 dist/
 build/
+compile_commands.json
 *.egg-info/
 .codex/
 .claude/
