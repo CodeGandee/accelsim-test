@@ -104,7 +104,7 @@ Notes:
 1) **Square baseline (“square-ish”)**
    - Suites: `square`
    - Shapes: `512, 1024, 2048, 4096` (`M=N=K`)
-   - Dtypes: all supported dtypes above (unless narrowed)
+   - Dtypes: `fp16_fp16_fp16`, `bf16_bf16_bf16`, `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`, `int8_int8_int32`
 
 2) **Suggested initial sweep: cache-resident**
    - Suites:
@@ -118,8 +118,8 @@ Notes:
        - `(1024, 4096, 1024)`
        - `(1024, 1024, 4096)`
    - Dtypes:
-     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`
-     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`
+     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`, `int8_int8_int32`
+     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`, `int8_int8_int32`
 
 3) **Suggested initial sweep: cache-spill**
    - Suites:
@@ -136,8 +136,8 @@ Notes:
        - copy-A stress: `(2304, 1536, 1536)` (run in `nonsquare_atb`)
        - copy-B stress: `(1536, 2304, 1536)` (run in `nonsquare_abt`)
    - Dtypes:
-     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`
-     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`
+     - fp16/bf16 shapes: `fp16_fp16_fp16`, `bf16_bf16_bf16`, `int8_int8_int32`
+     - fp32 shapes: `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`, `int8_int8_int32`
 
 4) **Safety control set (dims <= 1000)**
    - Suites: `square`, `nonsquare_atb`, `nonsquare_abt`
@@ -148,7 +148,7 @@ Notes:
        - `(256, 992, 256)`
        - `(256, 256, 992)`
        - `(960, 320, 640)`
-   - Dtypes: at least `fp16_fp16_fp16`, `bf16_bf16_bf16`, `fp32_fp32_fp32` (and optionally `fp32_fp32_fp32_tf32`, `int8_int8_int32` if supported/desired)
+   - Dtypes: `fp16_fp16_fp16`, `bf16_bf16_bf16`, `fp32_fp32_fp32`, `fp32_fp32_fp32_tf32`, `int8_int8_int32`
 
 ### 2.3 Sequence diagram (steady-state usage)
 
