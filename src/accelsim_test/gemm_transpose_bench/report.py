@@ -9,6 +9,30 @@ def _load_results(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
 
 
+def _find_repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _line_number(path: Path, needle: str) -> int | None:
+    try:
+        for i, line in enumerate(path.read_text().splitlines(), start=1):
+            if needle in line:
+                return i
+    except OSError:
+        return None
+    return None
+
+
+def _fmt_code_ref(path: Path, lineno: int | None) -> str:
+    try:
+        rel = path.resolve().relative_to(_find_repo_root().resolve())
+    except Exception:
+        rel = path
+    if lineno is None:
+        return f"`{rel}`"
+    return f"`{rel}:{lineno}`"
+
+
 def _format_float(v: float | None) -> str:
     if v is None:
         return "NA"
@@ -282,6 +306,44 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("Notes:")
     lines.append("- `NA` means the value is missing (e.g., a case was not run).")
     lines.append("- `flop_count` is always `2*M*N*K` even for integer cases; this report intentionally does not compute throughput columns.")
+    lines.append("")
+
+    lines.append("## Kernel Dispatch (cuBLASLt)")
+    lines.append("")
+    lines.append("This benchmark invokes GEMM via **cuBLASLt**; the concrete GPU kernel name is selected by cuBLASLt heuristics.")
+    lines.append("")
+    repo_root = _find_repo_root()
+    gemm_bench_path = repo_root / "cpp" / "src" / "gemm_transpose_bench.cu"
+    lt_impl_path = repo_root / "cpp" / "src" / "cublaslt_gemm.cu"
+
+    timed_ln = _line_number(gemm_bench_path, "state.exec(nvbench::exec_tag::sync")
+    cublaslt_ln = _line_number(lt_impl_path, "cublasLtMatmul(")
+    heur_ln = _line_number(lt_impl_path, "cublasLtMatmulAlgoGetHeuristic")
+
+    lines.append("- Timed region (NVBench) calls `plan.Run(...)` inside `state.exec(...)`: " + _fmt_code_ref(gemm_bench_path, timed_ln))
+    lines.append("- cuBLASLt launch call is `cublasLtMatmul(...)` inside `CublasLtGemmPlan::Run(...)`: " + _fmt_code_ref(lt_impl_path, cublaslt_ln))
+    lines.append("- Algo selection uses `cublasLtMatmulAlgoGetHeuristic(...)`: " + _fmt_code_ref(lt_impl_path, heur_ln))
+    lines.append("")
+    lines.append("Transpose form (what we mean by `*_view` vs `*_copy*`):")
+    lines.append("- `*_view`: sets cuBLASLt transpose flags (`CUBLAS_OP_T`) and calls GEMM directly (no explicit transpose buffer).")
+    lines.append("- `*_copy*`: explicitly transposes on-device outside the timed region, then calls GEMM with `op(N),op(N)` on the materialized buffer.")
+    lines.append("")
+    lines.append("Key call sites (representative):")
+    lines.append("")
+    lines.append("```cpp")
+    lines.append("// Timed region (GEMM-only):")
+    lines.append("state.exec(nvbench::exec_tag::sync, [&](nvbench::launch &launch) {")
+    lines.append("  plan.Run(launch.get_stream(), a_used, b_used, c_dev, &alpha, &beta);")
+    lines.append("});")
+    lines.append("```")
+    lines.append("")
+    lines.append("```cpp")
+    lines.append("// cuBLASLt dispatch (launches the GEMM kernel):")
+    lines.append("cublasLtMatmul(m_handle, m_matmul_desc, alpha, a, m_a_layout, b, m_b_layout, beta, c, m_c_layout, c, m_c_layout,")
+    lines.append("              &m_algo, m_workspace, m_workspace_bytes, stream);")
+    lines.append("```")
+    lines.append("")
+    lines.append("If you ran `profile`, each record's `profiling.command` and `*.ncu-rep` capture the concrete kernel name (e.g., `ampere_fp16_...`).")
     lines.append("")
     lines.append("## Conclusions")
     lines.append("")
