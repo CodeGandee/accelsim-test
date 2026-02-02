@@ -1,50 +1,82 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- 
+Sync Impact Report:
+- Version Change: 1.1.0 (Hybrid Integration) -> 1.2.0 (Architectural Hierarchy)
+- Modified Principles: 
+  - Added "System Architecture" as Principle I to define Python's role as orchestrator.
+  - Renumbered subsequent principles.
+  - Clarified "Build Authority": Pixi (Python) is the global workflow manager; Conan (C++) is the subsystem build manager.
+- Templates Status: 
+  - .specify/templates/plan-template.md: ✅ Compatible.
+  - .specify/templates/spec-template.md: ✅ Compatible.
+  - .specify/templates/tasks-template.md: ✅ Compatible.
+-->
+
+# accelsim-test Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. System Architecture
+- **Orchestration First**: Python is the primary entry point and orchestrator. It manages workflows, test runners, simulation drivers, and analysis tools.
+- **High-Performance Subsystem**: C++ (`cpp/`) is a distinct subproject dedicated to high-performance compute kernels and simulation engines. It is invoked, wrapped, or managed by the Python layer, not the other way around.
+- **Directory Structure**: Python resides in the repository root (`src/`, `tests/`); C++ resides strictly in `cpp/`.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. C++ Language Standards (Subproject)
+- **Modern Idioms**: Prioritize C++17/20 (RAII, smart pointers, move semantics).
+- **Naming Conventions**: `PascalCase` for types, `lower_snake_case` for functions/variables.
+- **Member Variables**: STRICT `m_` prefix for data members.
+- **Safety**: `const` correctness is non-negotiable. Public APIs must be safe (`[[nodiscard]]`, `std::optional`, no raw owning pointers).
+- **Headers**: Use `#pragma once` and avoid `using namespace`.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Python Language Standards (Orchestrator)
+- **Type Safety**: All code must be type-annotated and pass `mypy`. Linting via `ruff` is mandatory.
+- **Functional Classes**: 
+  - Follow strict OO design with `m_` prefix for member variables.
+  - Use factory methods (`cls.from_x`) instead of complex constructors.
+  - Expose read-only properties; use explicit `set_x()` methods for mutation.
+- **Data Models**: 
+  - Use `attrs` (default) or `pydantic` (web schemas).
+  - Use framework-native field naming (NO `m_` prefix).
+  - Keep logic-free; define fields declaratively.
+- **Style**: Prefer absolute imports.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Build & Environment Authority
+- **Global Workflow (Python/Pixi)**: **Pixi** is the master environment and workflow manager. All build tasks, test runs, and scripts are defined as Pixi tasks.
+- **Subsystem Build (C++/Conan)**: C++ dependency management (Conan) and compilation (CMake) are encapsulated processes. They are triggered by the global Python/Pixi workflow, ensuring a unified developer experience.
+  - System Python is PROHIBITED.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Three-Tier Testing Strategy
+Testing is mandatory for all features.
+1. **Manual Tests** (Feature Validation):
+   - **Python (Primary)**: Interactive scripts in `tests/manual/` focusing on visualization/inspection. Orchestrates full scenarios.
+   - **C++ (Kernel Level)**: Standalone `main()` executables in `tests/manual/cpp/` for low-level validation.
+2. **Unit Tests** (Component Isolation):
+   - **Python**: `pytest` in `tests/unit/`. Mock external resources.
+   - **C++**: Catch2 framework in `tests/unit/cpp/`.
+3. **Integration Tests** (System Flows):
+   - End-to-end scenarios in `tests/integration/` where Python drives C++ components to validate interoperability and correctness.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### VI. Documentation & Performance
+- **Documentation**: 
+  - **Python**: NumPy-style docstrings (Orchestrator APIs).
+  - **C++**: Doxygen-style comments (Engine APIs).
+  - **General**: No hard line breaks in Markdown prose.
+- **Performance**: Critical paths (usually C++) must be profiled (perf, Nsight) and benchmarked. Python profiling focuses on orchestration overhead.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+## Development Workflow
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Quality Gates & Review
+- **Pre-commit**: All code must compile/interpret without warnings.
+- **Static Analysis**: `clang-tidy` (C++) and `ruff` (Python) checks must pass.
+- **Type Check**: `mypy` must pass for all Python code.
+- **Test Pass**: All Unit tests must pass before review.
+- **Review Focus**:
+  - **Architecture**: Ensure logic resides in the correct layer (Performance -> C++, Orchestration -> Python).
+  - **Safety**: Resource Management (C++) and Type Safety (Python).
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This Constitution supersedes all other practices. Amendments require documentation, approval, and a migration plan.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Compliance**: All Pull Requests and Code Reviews must explicitly verify compliance with these principles. Deviations must be justified by complexity or technical impossibility, not convenience.
+
+**Version**: 1.2.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-02-02

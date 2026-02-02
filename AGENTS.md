@@ -1,8 +1,16 @@
 # Repository Guidelines
 
+## Project Model (Python + C++)
+
+This is a mixed Python/C++ project:
+
+- **Python is the orchestrator**: environment management (Pixi), repo automation/CLIs, and “glue” code that coordinates one or more C++ builds/runs (executables, modules, functions).
+- **C++ is a subproject** under `cpp/`: built and dependency-managed with **Conan** + **CMake** (often invoked from Python tooling).
+
 ## Project Structure & Module Organization
 
 - `src/accelsim_test/`: main Python package (src-layout).
+- `cpp/`: C++ subproject (Conan 2 + CMake) for performance-critical code and experiments.
 - `tests/`: test scaffolding (`unit/`, `integration/`, `manual/`).
 - `scripts/`: repository helper scripts / CLIs (add new entry points here).
 - `docs/`: Markdown documentation (MkDocs Material is listed as a dependency, but no site config is committed yet).
@@ -14,12 +22,20 @@
 
 ## Build, Test, and Development Commands
 
-This repo uses `pixi` for a reproducible Python environment (`pyproject.toml`, `pixi.lock`).
+This repo uses `pixi` at the workspace root for a reproducible Python environment (`pyproject.toml`, `pixi.lock`).
 
 - `pixi install`: create/update the environment from the lockfile.
 - `pixi shell`: activate the environment in your shell.
 - `pixi run ruff check .`: lint the repository (Ruff is a dependency).
 - `pixi run mypy src`: type-check package code (Mypy is a dependency).
+
+The C++ subproject uses Conan + CMake (run from `cpp/`):
+
+- `cd cpp`
+- `conan profile detect --force` (once per machine)
+- `conan install . -b missing`
+- `cmake --preset conan-release`
+- `cmake --build --preset conan-release -j`
 
 Profiling tools:
 - `nsys`: NVIDIA Nsight Systems (available on the host system).
@@ -31,7 +47,8 @@ Submodules (required for external dependencies like Accel-Sim):
 ## Coding Style & Naming Conventions
 
 - Python: 4-space indentation, `snake_case` for functions/variables, `PascalCase` for classes.
-- Prefer type hints for public functions and data structures.
+- Python: prefer type hints for public functions and data structures; keep “orchestration” logic in Python (calling C++ via subprocess, Python bindings, or other adapters).
+- C++: keep code and build logic inside `cpp/` (dependencies in `cpp/conanfile.py`, build via CMake presets); follow existing style in that subproject.
 - Keep library code in `src/` and avoid importing from `extern/` (tracked code is vendor/reference).
 
 ## Testing Guidelines
