@@ -98,8 +98,6 @@ def compute_ratios_in_place(results: dict[str, Any]) -> None:
 
 
 def generate_report(results: dict[str, Any]) -> str:
-    compute_ratios_in_place(results)
-
     records = list(results.get("records", []))
 
     lines: list[str] = []
@@ -129,10 +127,6 @@ def generate_report(results: dict[str, Any]) -> str:
         "algo_id_ATB_copyA",
         "timed_ms_ABT_copyB",
         "algo_id_ABT_copyB",
-        "slow_ATB_view_vs_AB",
-        "slow_ABT_view_vs_AB",
-        "over_ATB_copyA_vs_view",
-        "over_ABT_copyB_vs_view",
         "verify",
     ]
     lines.append("| " + " | ".join(header) + " |")
@@ -196,10 +190,6 @@ def generate_report(results: dict[str, Any]) -> str:
                     _format_int(algo_id_case("ATB_copyA")),
                     _format_float(abt_copy),
                     _format_int(algo_id_case("ABT_copyB")),
-                    _format_float(_safe_ratio(atb_view, ab)),
-                    _format_float(_safe_ratio(abt_view, ab)),
-                    _format_float(_safe_ratio(atb_copy, atb_view)),
-                    _format_float(_safe_ratio(abt_copy, abt_view)),
                     verify,
                 ]
             )
@@ -221,12 +211,10 @@ def generate_report(results: dict[str, Any]) -> str:
         "algo_id_ATB_view",
         "timed_ms_ATB_copyA",
         "algo_id_ATB_copyA",
-        "over_ATB_copyA_vs_view",
         "timed_ms_ABT_view",
         "algo_id_ABT_view",
         "timed_ms_ABT_copyB",
         "algo_id_ABT_copyB",
-        "over_ABT_copyB_vs_view",
         "verify",
     ]
     lines.append("| " + " | ".join(header2) + " |")
@@ -282,12 +270,10 @@ def generate_report(results: dict[str, Any]) -> str:
                     _format_int(algo_id_suite_case("nonsquare_atb", "ATB_view")),
                     _format_float(atb_copy),
                     _format_int(algo_id_suite_case("nonsquare_atb", "ATB_copyA")),
-                    _format_float(_safe_ratio(atb_copy, atb_view)),
                     _format_float(abt_view),
                     _format_int(algo_id_suite_case("nonsquare_abt", "ABT_view")),
                     _format_float(abt_copy),
                     _format_int(algo_id_suite_case("nonsquare_abt", "ABT_copyB")),
-                    _format_float(_safe_ratio(abt_copy, abt_view)),
                     verify,
                 ]
             )
@@ -305,8 +291,6 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*N*N*N`).")
     lines.append("- `timed_ms_*`: Mean GPU time in milliseconds from the NVBench timing run (GEMM-only; transpose materialization is outside timing).")
     lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for that case (from `cublasLtMatmulAlgoGetHeuristic`).")
-    lines.append("- `slow_*_vs_AB`: Slowdown vs baseline `AB`, computed as `timed_ms_case / timed_ms_AB`.")
-    lines.append("- `over_*_vs_view`: Materialization overhead factor, computed as `timed_ms_copy / timed_ms_view`.")
     lines.append("- `verify`: `pass` if all cases in the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("### Non-square Suite")
@@ -318,7 +302,6 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `timed_ms_ATB_*`: Times for the transpose-A suite (`nonsquare_atb`): `ATB_view` and `ATB_copyA`.")
     lines.append("- `timed_ms_ABT_*`: Times for the transpose-B suite (`nonsquare_abt`): `ABT_view` and `ABT_copyB`.")
     lines.append("- `algo_id_*`: cuBLASLt algorithm ID selected for the corresponding suite/case; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
-    lines.append("- `over_*_vs_view`: Materialization overhead factor, computed as `timed_ms_copy / timed_ms_view` for the corresponding direction.")
     lines.append("- `verify`: `pass` if all present non-square records for the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("Notes:")

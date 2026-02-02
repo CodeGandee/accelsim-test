@@ -8,7 +8,6 @@ from pathlib import Path
 
 from .config import CASES, SUITES, iter_dtypes, iter_shapes
 from .export import normalize_nvbench_results, parse_nvbench_json, validate_results_schema, write_results
-from .report import compute_ratios_in_place
 
 
 def find_repo_root() -> Path:
@@ -127,7 +126,6 @@ def _merge_results(existing: dict, new: dict) -> dict:
         by_key[_record_key(r)] = r
     merged["records"] = list(by_key.values())
 
-    compute_ratios_in_place(merged)
     validate_results_schema(merged)
     return merged
 
@@ -183,7 +181,6 @@ def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench
         artifacts_dir=out_dir,
         nvbench_settings={"stopping_criterion": "stdrel", "min_time_s": 0.5, "max_noise_pct": 0.5, "min_samples": 10},
     )
-    compute_ratios_in_place(results)
     results_path = out_dir / "results.json"
     if results_path.exists():
         existing = json.loads(results_path.read_text())

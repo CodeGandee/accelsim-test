@@ -245,8 +245,6 @@ Implementation guidance (not prescriptive):
 Minimum outputs:
 - A table (Markdown and/or CSV) showing for each configuration:
   - per-case time (ms) and TFLOP/s
-  - in square suite: slowdown factors vs `AB`
-  - in non-square suite: materialization overhead factors (`ATB_copyA / ATB_view`, `ABT_copyB / ABT_view`)
 - A short analysis section per dtype explaining observed patterns:
   - when non-contiguous views cause fallback/slowdown
   - when explicit `.contiguous()` helps (and the cost of making it contiguous)
@@ -255,30 +253,28 @@ Minimum outputs:
 ### Final comparison table (stakeholder-facing)
 The final report MUST include a stakeholder-facing comparison table (in Markdown) derived from the structured export.
 
-**Key principle:** show results **per configuration** (shape + dtype pair + suite) with **all relevant cases on one row**, plus explicit ratios.
+**Key principle:** show results **per configuration** (shape + dtype pair + suite) with **all relevant cases on one row**, using only physically measured timing values (and optionally throughput derived from `flop_count / time`).
 
-**FLOP consistency requirement:** within a single table row, all compared cases MUST have the same theoretical `flop_count`. If a set of cases would have different FLOP counts, they MUST be split into separate rows (or excluded from direct ratio comparisons).
+**FLOP consistency requirement:** within a single table row, all compared cases MUST have the same theoretical `flop_count`. If a set of cases would have different FLOP counts, they MUST be split into separate rows (or excluded from direct comparisons).
 
 #### Table A: Square suite summary (`A[N,N]`, `B[N,N]`)
 One row per `(N, dtype_pair, layout_mode, math_mode)`:
 
-| suite | N | dtype_pair | flop_count | timed_ms_AB | timed_ms_ATB_view | timed_ms_ABT_view | timed_ms_ATB_copyA | timed_ms_ABT_copyB | slow_ATB_view_vs_AB | slow_ABT_view_vs_AB | over_ATB_copyA_vs_view | over_ABT_copyB_vs_view | verify |
-|------:|--:|------------|----------:|------------:|------------------:|------------------:|-------------------:|-------------------:|--------------------:|--------------------:|-----------------------:|-----------------------:|--------|
-| square |  |            |           |             |                   |                   |                    |                    |                     |                     |                        |                        |        |
+| suite | N | dtype_pair | flop_count | timed_ms_AB | timed_ms_ATB_view | timed_ms_ABT_view | timed_ms_ATB_copyA | timed_ms_ABT_copyB | verify |
+|------:|--:|------------|----------:|------------:|------------------:|------------------:|-------------------:|-------------------:|--------|
+| square |  |            |           |             |                   |                   |                    |                    |        |
 
 Definitions:
 - `flop_count`: theoretical GEMM FLOP count for the case (`2 * N * N * N`).
 - `timed_ms_*`: average per-matmul time from the **no-profiler** run.
-- `slow_*_vs_AB`: `timed_ms_case / timed_ms_AB`.
-- `over_*_vs_view`: `timed_ms_copy / timed_ms_view` (materialization overhead factor).
 - `verify`: pass/fail (+ optional error summary).
 
 #### Table B: Non-square suite summary (FLOP-matched; transpose-A and transpose-B)
 One row per `(M,N,K, dtype_pair, layout_mode, math_mode)`:
 
-| suite | M | N | K | dtype_pair | flop_count | timed_ms_ATB_view | timed_ms_ATB_copyA | over_ATB_copyA_vs_view | timed_ms_ABT_view | timed_ms_ABT_copyB | over_ABT_copyB_vs_view | verify |
-|------:|--:|--:|--:|------------|----------:|------------------:|-------------------:|-----------------------:|------------------:|-------------------:|-----------------------:|--------|
-| non_square |  |  |  |           |           |                   |                    |                        |                   |                    |                        |        |
+| suite | M | N | K | dtype_pair | flop_count | timed_ms_ATB_view | timed_ms_ATB_copyA | timed_ms_ABT_view | timed_ms_ABT_copyB | verify |
+|------:|--:|--:|--:|------------|----------:|------------------:|-------------------:|------------------:|-------------------:|--------|
+| non_square |  |  |  |           |           |                   |                    |                   |                    |        |
 
 Notes:
 - The non-square table intentionally does not include `AB` because the non-square suite is defined around `A_atb[K,M] @ B_atb[K,N]` (transpose-A) and `A_abt[M,K] @ B_abt[N,K]` (transpose-B).
