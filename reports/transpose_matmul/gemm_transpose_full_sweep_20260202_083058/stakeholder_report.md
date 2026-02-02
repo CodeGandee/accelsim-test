@@ -20,40 +20,81 @@
 
 ## Key Results (curated)
 
-### Square Suite (N=4096)
+### Square Suite snapshots (N=4096, 2048, 1024, 512)
 
 From `report.md` (times in ms; `algo_id` is cuBLASLt-selected for that specific case):
 
-| dtype_pair | A@B(ms) (algo_id) | A@B.T(ms) (algo_id) | note |
-|---|---:|---:|---|
-| `bf16,bf16->bf16 (fp32,default)` | 0.566 (6) | 0.569 (6) | similar across transpose modes |
-| `fp16,fp16->fp16 (fp32,default)` | 0.578 (6) | 0.619 (21) | transpose-B view flips algorithm here |
-| `fp32,fp32->fp32 (fp32,default)` | 7.238 (0) | 7.299 (0) | expected slower fp32 |
-| `fp32,fp32->fp32 (tf32,tf32)` | 1.163 (21) | 1.147 (21) | TF32 is a large speedup vs fp32 |
-| `int8,int8->int32 (int32,default)` | 1.924 (0) | 0.357 (21) | **~5.4× faster** with transpose-B view |
+#### N=4096
 
-### Non-square Suite: int8 transpose-B (`nonsquare_abt`)
+| dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) | note |
+|---|---:|---:|---:|---:|---:|---|
+| `bf16,bf16->bf16 (fp32,default)` | 0.566 (6) | 0.562 (6) | 0.569 (6) | 0.564 (6) | 0.564 (6) | similar across transpose modes |
+| `fp16,fp16->fp16 (fp32,default)` | 0.578 (6) | 0.573 (6) | 0.619 (21) | 0.581 (6) | 0.582 (6) | transpose-B view flips algorithm here |
+| `fp32,fp32->fp32 (fp32,default)` | 7.238 (0) | 7.219 (20) | 7.299 (0) | 7.236 (0) | 7.236 (0) | expected slower fp32 |
+| `fp32,fp32->fp32 (tf32,tf32)` | 1.163 (21) | 1.176 (21) | 1.147 (21) | 1.159 (21) | 1.160 (21) | TF32 is a large speedup vs fp32 |
+| `int8,int8->int32 (int32,default)` | 1.924 (0) | 1.935 (0) | 0.357 (21) | 1.923 (0) | 1.924 (0) | **~5.4× faster** with transpose-B view |
 
-This compares `ABT_view` (A@B.T) vs `ABT_copyB` (A@copy(B.T)). Both rows time **only** the GEMM; the `copy(B.T)` materialization is outside timing.
+#### N=2048
 
-| MxNxK | ABT_view: A@B.T(ms) (algo_id) | ABT_copyB: A@copy(B.T)(ms) (algo_id) | speedup (copy/view) |
-|---|---:|---:|---:|
-| 256×992×256 | 0.009295 (21) | 0.023144 (0) | 2.49× |
-| 1024×1024×4096 | 0.040784 (21) | 0.171977 (0) | 4.22× |
-| 2048×3072×2048 | 0.080541 (21) | 0.393818 (0) | 4.89× |
-
-Across *all* tested non-square shapes for int8, `ABT_view` was faster than `ABT_copyB` by **2.06×–4.89×** in this run.
-
-### Non-square Suite: algorithm config can change even when `algo_id` is the same
-
-Example: `fp32,fp32->fp32 (tf32,tf32)` at `M×N×K = 960×320×640` in `nonsquare_atb`:
-
-| case | time(ms) | algo_id | splitk_num | stages_id | required_workspace_bytes |
+| dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) |
 |---|---:|---:|---:|---:|---:|
-| `ATB_view` | 0.022024 | 21 | 4 | 6 | 4915200 |
-| `ATB_copyA` | 0.016271 | 21 | 1 | 12 | 0 |
+| `bf16,bf16->bf16 (fp32,default)` | 0.112 (6) | 0.111 (6) | 0.113 (6) | 0.112 (6) | 0.112 (6) |
+| `fp16,fp16->fp16 (fp32,default)` | 0.077 (34) | 0.082 (34) | 0.079 (34) | 0.077 (34) | 0.077 (34) |
+| `fp32,fp32->fp32 (fp32,default)` | 0.978 (0) | 0.953 (1) | 0.976 (0) | 0.978 (0) | 0.978 (0) |
+| `fp32,fp32->fp32 (tf32,tf32)` | 0.179 (21) | 0.181 (21) | 0.180 (21) | 0.179 (21) | 0.180 (21) |
+| `int8,int8->int32 (int32,default)` | 0.300 (0) | 0.302 (0) | 0.061 (21) | 0.299 (0) | 0.299 (0) |
 
-So “same `algo_id`” does **not** guarantee the same underlying configuration; use the full `record.cublaslt.algo.*` fields in `results.json`/`all_timings.md`.
+#### N=1024
+
+| dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) |
+|---|---:|---:|---:|---:|---:|
+| `bf16,bf16->bf16 (fp32,default)` | 0.023 (6) | 0.023 (6) | 0.023 (6) | 0.023 (6) | 0.023 (6) |
+| `fp16,fp16->fp16 (fp32,default)` | 0.023 (34) | 0.023 (34) | 0.024 (6) | 0.023 (34) | 0.023 (34) |
+| `fp32,fp32->fp32 (fp32,default)` | 0.135 (0) | 0.135 (20) | 0.137 (0) | 0.135 (0) | 0.135 (0) |
+| `fp32,fp32->fp32 (tf32,tf32)` | 0.036 (21) | 0.037 (21) | 0.037 (21) | 0.036 (21) | 0.036 (21) |
+| `int8,int8->int32 (int32,default)` | 0.069 (0) | 0.069 (0) | 0.018 (21) | 0.069 (0) | 0.069 (0) |
+
+#### N=512
+
+| dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) |
+|---|---:|---:|---:|---:|---:|
+| `bf16,bf16->bf16 (fp32,default)` | 0.011 (31) | 0.012 (31) | 0.011 (31) | 0.011 (31) | 0.011 (31) |
+| `fp16,fp16->fp16 (fp32,default)` | 0.011 (6) | 0.011 (6) | 0.011 (6) | 0.011 (6) | 0.011 (6) |
+| `fp32,fp32->fp32 (fp32,default)` | 0.033 (1) | 0.032 (1) | 0.036 (1) | 0.033 (1) | 0.033 (1) |
+| `fp32,fp32->fp32 (tf32,tf32)` | 0.015 (21) | 0.015 (21) | 0.015 (21) | 0.015 (21) | 0.015 (21) |
+| `int8,int8->int32 (int32,default)` | 0.024 (0) | 0.028 (0) | 0.010 (21) | 0.024 (0) | 0.023 (0) |
+
+### Non-square Suite (FLOP-matched; view vs copy)
+
+Non-square timing is split into two suites with **different storage shapes** (so the transpose-view expressions are well-defined for non-square matrices):
+
+- `nonsquare_atb`: store `A` as `(K,M)` and `B` as `(K,N)`, then measure `A.T@B` (view) and `copy(A.T)@B` (copy).
+- `nonsquare_abt`: store `A` as `(M,K)` and `B` as `(N,K)`, then measure `A@B.T` (view) and `A@copy(B.T)` (copy).
+
+For copy cases, the transposed operand is materialized **outside** the timed region, so the copied buffer’s `.shape` matches what appears in the expression (e.g. `copy(B.T).shape=(K,N)`).
+
+All times below are **GEMM-only** (transpose materialization for `*_copy*` is intentionally outside timing).
+
+| suite | expr | A.shape | B.shape | M | N | K | dtype_pair | time(ms) (algo_id) | note |
+|---|---|---|---|---:|---:|---:|---|---:|---|
+| `nonsquare_atb` | `A.T@B` | (256,256) | (256,992) | 256 | 992 | 256 | `int8,int8->int32 (int32,default)` | 0.020327 (0) |  |
+| `nonsquare_atb` | `copy(A.T)@B` | (256,256) | (256,992) | 256 | 992 | 256 | `int8,int8->int32 (int32,default)` | 0.022409 (0) |  |
+| `nonsquare_abt` | `A@B.T` | (256,256) | (992,256) | 256 | 992 | 256 | `int8,int8->int32 (int32,default)` | 0.009295 (21) |  |
+| `nonsquare_abt` | `A@copy(B.T)` | (256,256) | (256,992) | 256 | 992 | 256 | `int8,int8->int32 (int32,default)` | 0.023144 (0) | transpose-B copy/view ≈ 2.49× |
+| `nonsquare_atb` | `A.T@B` | (4096,1024) | (4096,1024) | 1024 | 1024 | 4096 | `int8,int8->int32 (int32,default)` | 0.173452 (0) |  |
+| `nonsquare_atb` | `copy(A.T)@B` | (1024,4096) | (4096,1024) | 1024 | 1024 | 4096 | `int8,int8->int32 (int32,default)` | 0.172443 (0) |  |
+| `nonsquare_abt` | `A@B.T` | (1024,4096) | (1024,4096) | 1024 | 1024 | 4096 | `int8,int8->int32 (int32,default)` | 0.040784 (21) |  |
+| `nonsquare_abt` | `A@copy(B.T)` | (1024,4096) | (4096,1024) | 1024 | 1024 | 4096 | `int8,int8->int32 (int32,default)` | 0.171977 (0) | transpose-B copy/view ≈ 4.22× |
+| `nonsquare_atb` | `A.T@B` | (2048,3072) | (2048,2048) | 3072 | 2048 | 2048 | `int8,int8->int32 (int32,default)` | 0.398203 (0) |  |
+| `nonsquare_atb` | `copy(A.T)@B` | (3072,2048) | (2048,2048) | 3072 | 2048 | 2048 | `int8,int8->int32 (int32,default)` | 0.393961 (0) |  |
+| `nonsquare_abt` | `A@B.T` | (2048,2048) | (3072,2048) | 2048 | 3072 | 2048 | `int8,int8->int32 (int32,default)` | 0.080541 (21) |  |
+| `nonsquare_abt` | `A@copy(B.T)` | (2048,2048) | (2048,3072) | 2048 | 3072 | 2048 | `int8,int8->int32 (int32,default)` | 0.393818 (0) | transpose-B copy/view ≈ 4.89× |
+| `nonsquare_atb` | `A.T@B` | (640,960) | (640,320) | 960 | 320 | 640 | `fp32,fp32->fp32 (tf32,tf32)` | 0.022024 (21) | same algo_id, different config |
+| `nonsquare_atb` | `copy(A.T)@B` | (960,640) | (640,320) | 960 | 320 | 640 | `fp32,fp32->fp32 (tf32,tf32)` | 0.016271 (21) | same algo_id, different config |
+
+Notes:
+- For int8 transpose-B (`A@B.T` vs `A@copy(B.T)`), the large gaps correlate with **different cuBLASLt algos** (`algo_id=21` vs `algo_id=0`).
+- “Same `algo_id`” does **not** imply the same underlying configuration. Example at `M=960, N=320, K=640`, TF32 (`nonsquare_atb`): `A.T@B` and `copy(A.T)@B` both use `algo_id=21` but differ in `splitk_num`, `stages_id`, and `required_workspace_bytes` (see `all_timings.md` / `results.json`).
 
 ## Analysis
 
