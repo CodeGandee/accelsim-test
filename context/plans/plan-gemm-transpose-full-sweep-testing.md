@@ -68,6 +68,10 @@ These settings are the single source of truth for “full sweep” behavior (wha
   - `--max-noise 0.5`
   - `--min-samples 10`
   - `--devices 0`
+- Warmup / timed iterations per single configuration (NVBench “cold” measurement mode):
+  - Warmup kernel launches: **1** (not included in reported statistics).
+  - Timed kernel launches: **adaptive**, but **at least 10**, and continues until the stopping criterion is satisfied (min total GPU time ≥ `--min-time` and relative noise ≤ `--max-noise`).
+  - Reported `timed_ms_*` is the **mean** of the timed samples for that configuration.
 
 #### Profiling run (Nsight Compute per record)
 
@@ -77,6 +81,9 @@ These settings are the single source of truth for “full sweep” behavior (wha
   - `--min-samples 1`
   - `--max-noise 999`
   - (optional) `--profile` (NVBench internal; keep if it improves attribution, but `ncu` is authoritative)
+- Warmup / timed iterations per single configuration:
+  - Warmup kernel launches: **0** (NVBench `--profile` sets “run once” and skips warmup).
+  - Timed kernel launches: **1** (single invocation intended for kernel attribution in `ncu`).
 - `ncu` flags (baseline; adjust per GPU/driver constraints):
   - `--target-processes all`
   - `--kernel-name-base demangled`
