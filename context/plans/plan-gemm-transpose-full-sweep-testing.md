@@ -26,8 +26,9 @@ Success means we can run a single “full sweep” entry point that:
 3) Produces a single output directory under `tmp/` containing:
    - raw NVBench JSON outputs,
    - normalized `results.json` (schema-valid),
-   - a consolidated `report.md` showing **only measured times** (and other metadata like selected `algo_id`).
+   - a generated `report.md` showing **only measured times** (and other metadata like selected `algo_id`) for quick scanning / sanity checks.
 4) Produces an additional Markdown report that lists **all measured timings** for **all sweep records** in a **single** “giant table” (one Markdown file), and includes the **chosen cuBLASLt algorithm** for each row (at minimum `cublaslt.algo.id`), for auditability and downstream copy/paste.
+5) Produces a separate **stakeholder report** (human-in-the-loop, edited by agents + humans) that summarizes key findings across the sweep with analysis and verification-critical details. This is distinct from the generated `report.md`.
 
 ## 2. Implementation Approach
 
@@ -76,8 +77,9 @@ These settings are the single source of truth for “full sweep” behavior (wha
 - Expected artifacts:
   - `raw/nvbench_timing_<suite>.json` per timing chunk
   - `results.json` (merged, schema-valid)
-  - `report.md` (measured-time-only tables)
+  - `report.md` (generated; measured-time-only tables)
   - `all_timings.md` (giant table listing all records and their measured time plus the selected cuBLASLt algorithm, derived from `results.json`)
+  - `stakeholder_report.md` (human-in-the-loop: narrative + analysis + verification-critical notes; references `results.json` / `all_timings.md`)
 
 #### Sweep manifest (shapes × dtypes × suites)
 
@@ -194,16 +196,17 @@ sequenceDiagram
 - [ ] **Make timing flags explicit** Choose and document NVBench args for “full sweep” (e.g., `--min-time`, `--max-noise`, `--devices 0`) and keep them in `results.json.run.settings`.
 - [ ] **Validate completeness** Add a post-run check: verify every manifest configuration exists in `results.json` (fail fast if missing).
 - [ ] **Generate single-table results report** Emit `all_timings.md` that lists all records (suite, case, M/N/K, dtype, `cublaslt.algo.id` and optionally other `cublaslt.algo.*` fields, `timed_ms`) in one Markdown table.
+- [ ] **Draft stakeholder report** Create `stakeholder_report.md` with narrative + analysis, referencing `all_timings.md`/`results.json`, and include critical-path program details so others can verify correctness.
 - [ ] **Add tests** Unit test manifest expansion and completeness checks; integration smoke can continue to gate on `cuda13` + GPU presence.
 - [ ] **Document runbook** Add a short “How to run full sweep” section (expected runtime; output tree; how to resume).
 
 ## Appendix
 
-### A. Final Report Template (placeholders)
+### A. Generated Reports Template (placeholders)
 
-This is the intended shape of the final outputs. All values below are placeholders.
+These are intended shapes of the *program-generated* outputs. All values below are placeholders.
 
-#### `report.md` (summary)
+#### `report.md` (generated summary; measured-time only)
 
 ```md
 # GEMM Transpose Full Sweep Report
@@ -247,4 +250,70 @@ This is the intended shape of the final outputs. All values below are placeholde
 | suite | case | M | N | K | dtype_pair | time(ms) | samples | verify | algo_id | tile_id | splitk_num | stages_id |
 |---|---|---:|---:|---:|---|---:|---:|---|---:|---:|---:|---:|
 | `<square|nonsquare_atb|nonsquare_abt>` | `<AB|ATB_view|...>` | `<M>` | `<N>` | `<K>` | `<A,B->C (compute,math_mode)>` | `<ms>` | `<n>` | `<pass|fail>` | `<id>` | `<tile>` | `<splitk>` | `<stages>` |
+```
+
+### B. Stakeholder Report Template (human-in-the-loop; placeholders)
+
+This is the intended shape of the stakeholder-facing report. It is written/edited by agents + humans and is not intended to be auto-generated end-to-end.
+
+```md
+# GEMM Transpose Sweep — Stakeholder Report
+
+- Run ID: `<run_id>`
+- Date (UTC): `<YYYY-MM-DDTHH:MM:SSZ>`
+- Git: `<branch>` @ `<commit>` (dirty: `<true|false>`)
+- Environment: `<GPU / driver / CUDA / pixi env / nvbench flags>`
+- Data artifacts:
+  - `results.json`: `<path>`
+  - `all_timings.md`: `<path>`
+  - (optional) `raw/nvbench_timing_*.json`: `<path>`
+
+## Executive Summary
+
+- Key finding 1: `<what changed>` → `<impact>`
+- Key finding 2: `<what changed>` → `<impact>`
+- Key risks / caveats: `<noise, determinism, algorithm discontinuities, etc.>`
+
+## Key Results (curated)
+
+Describe and paste a *small* set of representative rows from `all_timings.md` that support the narrative:
+
+- Square suite highlights:
+  - `<shape, dtype>`: `A@B` vs `A.T@B` vs `A@B.T` ...
+- Non-square highlights:
+  - `<shape, dtype>`: `A.T@B` vs `copy(A.T)@B` ...
+- Int8 highlights:
+  - `<shape, dtype=int8_int8_int32>`: notable algorithm IDs / stability observations
+
+## Analysis
+
+- Algorithm selection patterns:
+  - When `cublaslt.algo.id` changes and how it correlates with timing
+  - Note shape boundaries (e.g., “N=992” tails) if observed
+- Stability / noise:
+  - Comment on `samples` and whether results meet the `max-noise` intent
+
+## Correctness & Verification (critical path)
+
+Explain how correctness is verified and where it lives in code so others can audit:
+
+- Timed region uses NVBench `state.exec(...)` calling `plan.Run(...)`: `<file:line>`
+- cuBLASLt dispatch is `cublasLtMatmul(...)`: `<file:line>`
+- `*_view` vs `*_copy*` meaning (transpose flags vs explicit transpose outside timing)
+- Verification approach (full vs sampled), tolerances, and failure policy
+
+## Reproduction
+
+Exact commands used, including Pixi env and NVBench args:
+
+- Build: `pixi run -e cuda13 gemm-transpose-build`
+- Sweep: `<command>`
+- Report generation:
+  - generated `report.md`: `<command>`
+  - generated `all_timings.md`: `<command>`
+
+## Appendix
+
+- Full timing table: see `all_timings.md`
+- Raw NVBench JSON: `raw/`
 ```
