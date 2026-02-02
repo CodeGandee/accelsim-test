@@ -27,7 +27,7 @@ Success means we can run a single “full sweep” entry point that:
    - raw NVBench JSON outputs,
    - normalized `results.json` (schema-valid),
    - a consolidated `report.md` showing **only measured times** (and other metadata like `algo_id_*`).
-4) Produces an additional Markdown report that **lists every sweep configuration** (suite, shape, dtype, case) in a **single** document for auditability and completeness checks.
+4) Produces an additional Markdown report that lists **all measured timings** for **all sweep records** in a **single** “giant table” (one Markdown file) for auditability and downstream copy/paste.
 
 ## 2. Implementation Approach
 
@@ -77,7 +77,7 @@ These settings are the single source of truth for “full sweep” behavior (wha
   - `raw/nvbench_timing_<suite>.json` per timing chunk
   - `results.json` (merged, schema-valid)
   - `report.md` (measured-time-only tables)
-  - `sweep_configs.md` (flat listing of all configs present in `results.json`, one table in a single Markdown file)
+  - `all_timings.md` (giant table listing all records and their measured `timed_ms` / `algo_id`, derived from `results.json`)
 
 #### Sweep manifest (shapes × dtypes × suites)
 
@@ -193,6 +193,6 @@ sequenceDiagram
 - [ ] **Add resumability** Skip timing runs if the corresponding raw JSON exists and passes schema validation.
 - [ ] **Make timing flags explicit** Choose and document NVBench args for “full sweep” (e.g., `--min-time`, `--max-noise`, `--devices 0`) and keep them in `results.json.run.settings`.
 - [ ] **Validate completeness** Add a post-run check: verify every manifest configuration exists in `results.json` (fail fast if missing).
-- [ ] **Generate sweep config inventory** Emit `sweep_configs.md` that lists all sweep configs (suite, shape, dtype, case, and optional `algo_id`) in a single Markdown table.
+- [ ] **Generate single-table results report** Emit `all_timings.md` that lists all records (suite, case, M/N/K, dtype, `algo_id`, `timed_ms`) in one Markdown table.
 - [ ] **Add tests** Unit test manifest expansion and completeness checks; integration smoke can continue to gate on `cuda13` + GPU presence.
 - [ ] **Document runbook** Add a short “How to run full sweep” section (expected runtime; output tree; how to resume).
