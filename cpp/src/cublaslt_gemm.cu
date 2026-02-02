@@ -16,6 +16,12 @@ void set_layout_order(cublasLtMatrixLayout_t layout, cublasLtOrder_t order)
 }
 
 template <typename T>
+void set_algo_attr(cublasLtMatmulAlgo_t &algo, cublasLtMatmulAlgoConfigAttributes_t attr, const T &value, const char *what)
+{
+  CublasLtGemmPlan::CheckLt(cublasLtMatmulAlgoConfigSetAttribute(&algo, attr, &value, sizeof(value)), what);
+}
+
+template <typename T>
 bool try_get_algo_attr(const cublasLtMatmulAlgo_t &algo, cublasLtMatmulAlgoConfigAttributes_t attr, T &out)
 {
   std::size_t written = 0;
@@ -31,9 +37,9 @@ CublasLtGemmPlan::CublasLtGemmPlan(const GemmDims &dims,
                                    const MatrixDims &a_dims,
                                    const MatrixDims &b_dims,
                                    const MatrixDims &c_dims,
-                                   cublasOperation_t trans_a,
-                                   cublasOperation_t trans_b,
-                                   const GemmPlanOptions &opts)
+                                          cublasOperation_t trans_a,
+                                          cublasOperation_t trans_b,
+                                          const GemmPlanOptions &opts)
     : m_workspace_bytes{opts.max_workspace_bytes}
 {
   (void)dims;
@@ -59,34 +65,77 @@ CublasLtGemmPlan::CublasLtGemmPlan(const GemmDims &dims,
   set_layout_order(m_b_layout, opts.order);
   set_layout_order(m_c_layout, opts.order);
 
-  cublasLtMatmulPreference_t pref{};
-  CheckLt(cublasLtMatmulPreferenceCreate(&pref), "cublasLtMatmulPreferenceCreate");
-  CheckLt(cublasLtMatmulPreferenceSetAttribute(pref,
-                                               CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                               &m_workspace_bytes,
-                                               sizeof(m_workspace_bytes)),
-          "cublasLtMatmulPreferenceSetAttribute(MAX_WORKSPACE_BYTES)");
-
   cublasLtMatmulHeuristicResult_t heur{};
-  int found = 0;
-  CheckLt(cublasLtMatmulAlgoGetHeuristic(m_handle,
-                                        m_matmul_desc,
-                                        m_a_layout,
-                                        m_b_layout,
-                                        m_c_layout,
-                                        m_c_layout,
-                                        pref,
-                                        1,
-                                        &heur,
-                                        &found),
-          "cublasLtMatmulAlgoGetHeuristic");
-  CheckLt(cublasLtMatmulPreferenceDestroy(pref), "cublasLtMatmulPreferenceDestroy");
-
-  if (found <= 0)
+  if (opts.algo_override.enabled)
   {
-    throw std::runtime_error("cublasLtMatmulAlgoGetHeuristic returned no algorithms.");
+    const auto &cfg = opts.algo_override.config;
+
+    CheckLt(cublasLtMatmulAlgoInit(m_handle,
+                                  types.compute_type,
+                                  types.scale_type,
+                                  types.a_type,
+                                  types.b_type,
+                                  types.c_type,
+                                  types.c_type,
+                                  static_cast<int>(cfg.id),
+                                  &m_algo),
+            "cublasLtMatmulAlgoInit");
+
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_TILE_ID, cfg.tile_id, "cublasLtMatmulAlgoConfigSetAttribute(TILE_ID)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_SPLITK_NUM, cfg.splitk_num, "cublasLtMatmulAlgoConfigSetAttribute(SPLITK_NUM)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, cfg.reduction_scheme, "cublasLtMatmulAlgoConfigSetAttribute(REDUCTION_SCHEME)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, cfg.cta_swizzling, "cublasLtMatmulAlgoConfigSetAttribute(CTA_SWIZZLING)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, cfg.custom_option, "cublasLtMatmulAlgoConfigSetAttribute(CUSTOM_OPTION)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_STAGES_ID, cfg.stages_id, "cublasLtMatmulAlgoConfigSetAttribute(STAGES_ID)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_INNER_SHAPE_ID, cfg.inner_shape_id, "cublasLtMatmulAlgoConfigSetAttribute(INNER_SHAPE_ID)");
+    set_algo_attr(m_algo, CUBLASLT_ALGO_CONFIG_CLUSTER_SHAPE_ID, cfg.cluster_shape_id, "cublasLtMatmulAlgoConfigSetAttribute(CLUSTER_SHAPE_ID)");
+
+    CheckLt(cublasLtMatmulAlgoCheck(m_handle,
+                                   m_matmul_desc,
+                                   m_a_layout,
+                                   m_b_layout,
+                                   m_c_layout,
+                                   m_c_layout,
+                                   &m_algo,
+                                   &heur),
+            "cublasLtMatmulAlgoCheck");
+
+    if (static_cast<std::size_t>(heur.workspaceSize) > m_workspace_bytes)
+    {
+      throw std::runtime_error("Pinned algorithm requires workspaceSize=" + std::to_string(static_cast<std::size_t>(heur.workspaceSize))
+                               + " which exceeds max_workspace_bytes=" + std::to_string(m_workspace_bytes));
+    }
   }
-  m_algo = heur.algo;
+  else
+  {
+    cublasLtMatmulPreference_t pref{};
+    CheckLt(cublasLtMatmulPreferenceCreate(&pref), "cublasLtMatmulPreferenceCreate");
+    CheckLt(cublasLtMatmulPreferenceSetAttribute(pref,
+                                                 CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                 &m_workspace_bytes,
+                                                 sizeof(m_workspace_bytes)),
+            "cublasLtMatmulPreferenceSetAttribute(MAX_WORKSPACE_BYTES)");
+
+    int found = 0;
+    CheckLt(cublasLtMatmulAlgoGetHeuristic(m_handle,
+                                          m_matmul_desc,
+                                          m_a_layout,
+                                          m_b_layout,
+                                          m_c_layout,
+                                          m_c_layout,
+                                          pref,
+                                          1,
+                                          &heur,
+                                          &found),
+            "cublasLtMatmulAlgoGetHeuristic");
+    CheckLt(cublasLtMatmulPreferenceDestroy(pref), "cublasLtMatmulPreferenceDestroy");
+
+    if (found <= 0)
+    {
+      throw std::runtime_error("cublasLtMatmulAlgoGetHeuristic returned no algorithms.");
+    }
+    m_algo = heur.algo;
+  }
 
   // Record selected algorithm config for downstream reporting.
   // Note: Some attributes may not be queryable for every algorithm; keep best-effort defaults.

@@ -33,12 +33,6 @@ struct GemmTypes
   cudaDataType_t scale_type{};
 };
 
-struct GemmPlanOptions
-{
-  std::size_t max_workspace_bytes{64ull * 1024ull * 1024ull};
-  cublasLtOrder_t order{CUBLASLT_ORDER_ROW};
-};
-
 struct CublasLtAlgoConfig
 {
   std::int32_t id{};
@@ -52,6 +46,19 @@ struct CublasLtAlgoConfig
   std::uint16_t cluster_shape_id{};
   std::size_t required_workspace_bytes{};
   std::int32_t waves_count{};
+};
+
+struct GemmAlgoOverride
+{
+  bool enabled{false};
+  CublasLtAlgoConfig config{};
+};
+
+struct GemmPlanOptions
+{
+  std::size_t max_workspace_bytes{64ull * 1024ull * 1024ull};
+  cublasLtOrder_t order{CUBLASLT_ORDER_ROW};
+  GemmAlgoOverride algo_override{};
 };
 
 class CublasLtGemmPlan

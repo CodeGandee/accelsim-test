@@ -102,6 +102,16 @@
             "timeout_s": { "type": "number" }
           },
           "additionalProperties": false
+        },
+        "cublaslt": {
+          "type": "object",
+          "required": ["algo_selection_mode"],
+          "properties": {
+            "algo_selection_mode": { "type": "string", "enum": ["heuristic", "pinned"] },
+            "algo_map_path": { "type": "string" },
+            "algo_map_sha256": { "type": "string" }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

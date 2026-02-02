@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from .config import CASES, SUITES, iter_dtypes, iter_shapes
 from .export import normalize_nvbench_results, parse_nvbench_json, validate_results_schema, write_results
@@ -126,11 +128,85 @@ def _merge_results(existing: dict, new: dict) -> dict:
         by_key[_record_key(r)] = r
     merged["records"] = list(by_key.values())
 
+    # Recompute run status from merged records. Merge is monotonic only when
+    # individual records are appended/updated; record verification can flip from
+    # fail->pass after reruns, so the run status must be derived (not preserved).
+    reasons: list[str] = []
+    # Preserve completeness-style failures (e.g., set by a sweep runner), but
+    # do not preserve prior verification failures since records may be rerun.
+    prior_reason = str(merged_run.get("failure_reason", "")).strip()
+    for part in (p.strip() for p in prior_reason.split(";") if prior_reason):
+        if part.startswith("missing "):
+            reasons.append(part)
+
+    failures = [r for r in merged.get("records", []) if r.get("verification", {}).get("status") == "fail"]
+    if failures:
+        reasons.append(f"{len(failures)} record(s) failed verification")
+
+    if reasons:
+        merged_run["status"] = "fail"
+        merged_run["failure_reason"] = "; ".join(dict.fromkeys(reasons))
+    else:
+        merged_run["status"] = "pass"
+        merged_run["failure_reason"] = ""
+
+    merged["run"] = merged_run
     validate_results_schema(merged)
     return merged
 
 
-def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench_args: str) -> int:
+def _parse_nvbench_flag_value(args: list[str], flag: str) -> str | None:
+    for i, a in enumerate(args):
+        if a == flag and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(f"{flag}="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def _ensure_nvbench_defaults(args: list[str]) -> list[str]:
+    # Keep these defaults aligned with context/plans/plan-gemm-transpose-full-sweep-testing.md.
+    defaults: dict[str, str] = {
+        "--stopping-criterion": "stdrel",
+        "--min-time": "0.5",
+        "--max-noise": "0.3",
+        "--min-samples": "20",
+    }
+    out = list(args)
+    for flag, val in defaults.items():
+        if _parse_nvbench_flag_value(out, flag) is None:
+            out += [flag, val]
+    return out
+
+
+def _nvbench_settings_from_args(args: list[str]) -> dict[str, Any]:
+    stopping = _parse_nvbench_flag_value(args, "--stopping-criterion") or "stdrel"
+    min_time_s = float(_parse_nvbench_flag_value(args, "--min-time") or "0.5")
+    max_noise = float(_parse_nvbench_flag_value(args, "--max-noise") or "0.3")
+    min_samples = int(_parse_nvbench_flag_value(args, "--min-samples") or "20")
+
+    out: dict[str, Any] = {
+        "stopping_criterion": stopping,
+        "min_time_s": min_time_s,
+        "max_noise_pct": max_noise,
+        "min_samples": min_samples,
+    }
+
+    timeout_s = _parse_nvbench_flag_value(args, "--timeout")
+    if timeout_s is not None:
+        out["timeout_s"] = float(timeout_s)
+    return out
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, algo_map: Path | None, nvbench_args: str) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "raw").mkdir(parents=True, exist_ok=True)
 
@@ -150,10 +226,23 @@ def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench
 
     axis_overrides = build_nvbench_sweep_axis_overrides(suites=suites, cases=cases, dtypes=dtype_keys, shapes=shape_values)
 
-    nvbench_args_list = shlex.split(nvbench_args)
+    nvbench_args_list = _ensure_nvbench_defaults(shlex.split(nvbench_args))
     if not any(a in {"--devices", "--device", "-d"} for a in nvbench_args_list):
         # Default to a single device to keep exports unambiguous.
         nvbench_args_list = ["--devices", "0", *nvbench_args_list]
+    nvbench_settings = _nvbench_settings_from_args(nvbench_args_list)
+
+    env = dict(os.environ)
+    cublaslt_settings: dict[str, Any] = {"algo_selection_mode": "heuristic"}
+    if algo_map is not None:
+        if not algo_map.exists():
+            raise FileNotFoundError(f"--algo-map points to missing file: {algo_map}")
+        env["ACCELSIM_TEST_CUBLASLT_ALGO_MAP"] = str(algo_map)
+        cublaslt_settings = {
+            "algo_selection_mode": "pinned",
+            "algo_map_path": str(algo_map),
+            "algo_map_sha256": _sha256_file(algo_map),
+        }
 
     cmd = [
         str(bench_exe),
@@ -164,7 +253,7 @@ def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench
         str(nvbench_json_path),
         *axis_overrides,
     ]
-    proc = subprocess.run(cmd, check=False)
+    proc = subprocess.run(cmd, env=env, check=False)
     if proc.returncode != 0:
         raise RuntimeError(f"Benchmark failed with exit code {proc.returncode}: {' '.join(cmd)}")
 
@@ -179,7 +268,8 @@ def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench
         pixi_env=os.environ.get("PIXI_ENVIRONMENT_NAME", "unknown"),
         nvbench_source_path=str((repo_root / "extern" / "orphan" / "nvbench").resolve()),
         artifacts_dir=out_dir,
-        nvbench_settings={"stopping_criterion": "stdrel", "min_time_s": 0.5, "max_noise_pct": 0.5, "min_samples": 10},
+        nvbench_settings=nvbench_settings,
+        cublaslt_settings=cublaslt_settings,
     )
     results_path = out_dir / "results.json"
     if results_path.exists():

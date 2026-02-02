@@ -8,10 +8,16 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <cstdlib>
+#include <fstream>
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 namespace accelsim::gemm
 {
@@ -104,6 +110,105 @@ Dtype resolve_dtype(const std::string &dtype_key, const std::string &math_mode)
   throw std::runtime_error("Unsupported dtype key: " + dtype_key);
 }
 
+struct AlgoOverrideMap
+{
+  bool enabled{false};
+  std::string source_path;
+  std::string error;
+  std::unordered_map<std::string, CublasLtAlgoConfig> by_key;
+};
+
+std::string make_algo_key(const std::string &suite,
+                          const std::string &case_name,
+                          const std::string &dtype_key,
+                          const std::string &shape_axis_value)
+{
+  return suite + "|" + case_name + "|" + dtype_key + "|" + shape_axis_value;
+}
+
+CublasLtAlgoConfig parse_algo_config(const nlohmann::json &j)
+{
+  CublasLtAlgoConfig cfg{};
+  cfg.id                      = static_cast<std::int32_t>(j.value("id", 0));
+  cfg.tile_id                 = static_cast<std::uint32_t>(j.value("tile_id", 0));
+  cfg.splitk_num              = static_cast<std::int32_t>(j.value("splitk_num", 0));
+  cfg.reduction_scheme        = static_cast<std::uint32_t>(j.value("reduction_scheme", 0));
+  cfg.cta_swizzling           = static_cast<std::uint32_t>(j.value("cta_swizzling", 0));
+  cfg.custom_option           = static_cast<std::uint32_t>(j.value("custom_option", 0));
+  cfg.stages_id               = static_cast<std::uint32_t>(j.value("stages_id", 0));
+  cfg.inner_shape_id          = static_cast<std::uint16_t>(j.value("inner_shape_id", 0));
+  cfg.cluster_shape_id        = static_cast<std::uint16_t>(j.value("cluster_shape_id", 0));
+  cfg.required_workspace_bytes = static_cast<std::size_t>(j.value("required_workspace_bytes", 0));
+  cfg.waves_count              = static_cast<std::int32_t>(j.value("waves_count", 0));
+  return cfg;
+}
+
+AlgoOverrideMap load_algo_override_map()
+{
+  AlgoOverrideMap out{};
+  const char *path = std::getenv("ACCELSIM_TEST_CUBLASLT_ALGO_MAP");
+  if (!path || std::strlen(path) == 0)
+  {
+    return out;
+  }
+
+  out.enabled     = true;
+  out.source_path = path;
+
+  try
+  {
+    std::ifstream f(out.source_path);
+    if (!f)
+    {
+      throw std::runtime_error("failed to open algo map file: " + out.source_path);
+    }
+
+    nlohmann::json j;
+    f >> j;
+
+    const nlohmann::json *algos = nullptr;
+    if (j.is_object() && j.contains("algos"))
+    {
+      algos = &j.at("algos");
+    }
+    else
+    {
+      algos = &j;
+    }
+
+    if (!algos->is_object())
+    {
+      throw std::runtime_error("algo map JSON must be an object or contain an object at key 'algos'");
+    }
+
+    for (auto it = algos->begin(); it != algos->end(); ++it)
+    {
+      if (!it.value().is_object())
+      {
+        continue;
+      }
+      out.by_key.emplace(it.key(), parse_algo_config(it.value()));
+    }
+
+    if (out.by_key.empty())
+    {
+      throw std::runtime_error("algo map is empty");
+    }
+  }
+  catch (const std::exception &e)
+  {
+    out.error = e.what();
+  }
+
+  return out;
+}
+
+const AlgoOverrideMap &get_algo_override_map()
+{
+  static const AlgoOverrideMap s = load_algo_override_map();
+  return s;
+}
+
 template <typename HostT>
 std::vector<HostT> make_host_matrix(int rows, int cols, int seed)
 {
@@ -153,6 +258,48 @@ std::vector<__nv_bfloat16> convert_to<__nv_bfloat16>(const std::vector<float> &i
   return out;
 }
 
+inline float quantize_fp16_value(float v)
+{
+  return __half2float(__float2half(v));
+}
+
+inline float quantize_bf16_value(float v)
+{
+  return __bfloat162float(__float2bfloat16(v));
+}
+
+inline float quantize_tf32_value(float v)
+{
+  // TF32 keeps fp32 exponent but truncates mantissa to 10 bits (round-to-nearest).
+  std::uint32_t bits{};
+  std::memcpy(&bits, &v, sizeof(bits));
+
+  const std::uint32_t exp = bits & 0x7F800000u;
+  if (exp == 0u || exp == 0x7F800000u)
+  {
+    // Zero/subnormals or Inf/NaN: return as-is.
+    return v;
+  }
+
+  bits += 0x00001000u;  // rounding bit for truncating 13 LSBs
+  bits &= 0xFFFFE000u;  // keep sign+exp+top mantissa bits
+  std::memcpy(&v, &bits, sizeof(bits));
+  return v;
+}
+
+inline float identity_value(float v)
+{
+  return v;
+}
+
+template <typename QuantizeFn>
+std::vector<float> quantize_vector(const std::vector<float> &in, QuantizeFn quantize)
+{
+  std::vector<float> out(in.size());
+  std::transform(in.begin(), in.end(), out.begin(), quantize);
+  return out;
+}
+
 template <typename T>
 float to_float(T v)
 {
@@ -178,6 +325,85 @@ struct VerificationResult
   float max_rel{0.0f};
   std::string details;
 };
+
+template <typename CHostT, typename QuantizeFn>
+VerificationResult verify_sampled_f32_inputs_quantized(const Shape &shape,
+                                                       const std::string &suite,
+                                                       const std::string &case_name,
+                                                       const std::vector<float> &a,
+                                                       int a_rows,
+                                                       int a_cols,
+                                                       const std::vector<float> &b,
+                                                       int b_rows,
+                                                       int b_cols,
+                                                       const std::vector<CHostT> &c_samples,
+                                                       const std::vector<std::pair<int, int>> &indices,
+                                                       QuantizeFn quantize,
+                                                       float abs_tol,
+                                                       float rel_tol)
+{
+  (void)suite;
+  (void)a_rows;
+  (void)b_rows;
+  VerificationResult vr{};
+
+  const int k = shape.k;
+
+  auto a_at = [&](int r, int c) -> float {
+    return quantize(a[static_cast<std::size_t>(r) * static_cast<std::size_t>(a_cols) + static_cast<std::size_t>(c)]);
+  };
+  auto b_at = [&](int r, int c) -> float {
+    return quantize(b[static_cast<std::size_t>(r) * static_cast<std::size_t>(b_cols) + static_cast<std::size_t>(c)]);
+  };
+
+  auto ref_at = [&](int i, int j) -> float {
+    float acc = 0.0f;
+    if (case_name == "AB")
+    {
+      for (int kk = 0; kk < k; ++kk)
+      {
+        acc += a_at(i, kk) * b_at(kk, j);
+      }
+      return acc;
+    }
+    if (case_name == "ATB_view" || case_name == "ATB_copyA")
+    {
+      for (int kk = 0; kk < k; ++kk)
+      {
+        acc += a_at(kk, i) * b_at(kk, j);
+      }
+      return acc;
+    }
+    if (case_name == "ABT_view" || case_name == "ABT_copyB")
+    {
+      for (int kk = 0; kk < k; ++kk)
+      {
+        acc += a_at(i, kk) * b_at(j, kk);
+      }
+      return acc;
+    }
+    throw std::runtime_error("Unknown case for reference: " + case_name);
+  };
+
+  for (std::size_t idx = 0; idx < indices.size(); ++idx)
+  {
+    const auto [i, j] = indices[idx];
+    const float got   = to_float(c_samples[idx]);
+    const float ref   = ref_at(i, j);
+    const float abs_e = std::abs(got - ref);
+    const float rel_e = (std::abs(ref) > 0.0f) ? abs_e / std::abs(ref) : abs_e;
+    vr.max_abs        = std::max(vr.max_abs, abs_e);
+    vr.max_rel        = std::max(vr.max_rel, rel_e);
+    if (!(abs_e <= abs_tol || rel_e <= rel_tol))
+    {
+      vr.pass    = false;
+      vr.details = "sample mismatch at (" + std::to_string(i) + "," + std::to_string(j) + ")";
+      break;
+    }
+  }
+
+  return vr;
+}
 
 template <typename AHostT, typename BHostT, typename CHostT>
 VerificationResult verify_sampled(const Shape &shape,
@@ -404,6 +630,13 @@ void gemm_transpose_bench(nvbench::state &state)
   const std::string dtype_key = state.get_string("dtype");
   const std::string math_mode = state.get_string_or_default("math_mode", "default");
   const std::string shape_str = state.get_string("shape");
+
+  const auto &algo_map = get_algo_override_map();
+  if (algo_map.enabled && !algo_map.error.empty())
+  {
+    state.skip(std::string("failed to load ACCELSIM_TEST_CUBLASLT_ALGO_MAP: ") + algo_map.error);
+    return;
+  }
 
   if (suite == "nonsquare_atb" && !(case_name == "ATB_view" || case_name == "ATB_copyA"))
   {
@@ -674,7 +907,19 @@ void gemm_transpose_bench(nvbench::state &state)
     const MatrixDims b_dims{b_used_rows, b_used_cols, b_used_cols};
     const MatrixDims c_dims{m, n, n};
 
-    const GemmPlanOptions plan_opts{};
+    GemmPlanOptions plan_opts{};
+    if (algo_map.enabled)
+    {
+      const std::string key = make_algo_key(suite, case_name, dtype_key, shape_str);
+      const auto it         = algo_map.by_key.find(key);
+      if (it == algo_map.by_key.end())
+      {
+        state.skip("missing pinned algo for key: " + key);
+        return;
+      }
+      plan_opts.algo_override.enabled = true;
+      plan_opts.algo_override.config  = it->second;
+    }
     const CublasLtGemmPlan plan(GemmDims{m, n, k}, dtype.types, a_dims, b_dims, c_dims, trans_a, trans_b, plan_opts);
 
     // Persist the selected cuBLASLt algorithm configuration for JSON export/reporting.
@@ -715,6 +960,7 @@ void gemm_transpose_bench(nvbench::state &state)
 
       const bool full_verify = std::max({m, n, k}) <= 1000;
       const std::string verify_mode = full_verify ? "full" : "sampled";
+      const bool tf32_mode = (dtype_key == "fp32_fp32_fp32_tf32") || (math_mode == "tf32");
 
       if (dtype.types.c_type == CUDA_R_32I)
       {
@@ -736,48 +982,65 @@ void gemm_transpose_bench(nvbench::state &state)
       {
         if (full_verify)
         {
+          const auto a_ref = quantize_vector(a_host_f, quantize_fp16_value);
+          const auto b_ref = quantize_vector(b_host_f, quantize_fp16_value);
           auto c_full = gather_device_matrix(static_cast<const __half *>(c_dev), static_cast<std::size_t>(m) * static_cast<std::size_t>(n));
           vr          = verify_full<float, float, __half>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, c_full, 5e-2f, 5e-2f);
+            shape, suite, case_name, a_ref, a_rows, a_cols, b_ref, b_rows, b_cols, c_full, 5e-2f, 5e-2f);
         }
         else
         {
           const auto idx = pick_sample_indices(m, n);
           auto samples   = gather_device_samples(static_cast<const __half *>(c_dev), n, idx);
-          vr             = verify_sampled<float, float, __half>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, 5e-2f, 5e-2f);
+          vr             = verify_sampled_f32_inputs_quantized<__half>(
+            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, quantize_fp16_value, 5e-2f, 5e-2f);
         }
       }
       else if (dtype.types.c_type == CUDA_R_16BF)
       {
         if (full_verify)
         {
+          const auto a_ref = quantize_vector(a_host_f, quantize_bf16_value);
+          const auto b_ref = quantize_vector(b_host_f, quantize_bf16_value);
           auto c_full = gather_device_matrix(static_cast<const __nv_bfloat16 *>(c_dev), static_cast<std::size_t>(m) * static_cast<std::size_t>(n));
           vr          = verify_full<float, float, __nv_bfloat16>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, c_full, 1e-1f, 1e-1f);
+            shape, suite, case_name, a_ref, a_rows, a_cols, b_ref, b_rows, b_cols, c_full, 1e-1f, 1e-1f);
         }
         else
         {
           const auto idx = pick_sample_indices(m, n);
           auto samples   = gather_device_samples(static_cast<const __nv_bfloat16 *>(c_dev), n, idx);
-          vr             = verify_sampled<float, float, __nv_bfloat16>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, 1e-1f, 1e-1f);
+          vr             = verify_sampled_f32_inputs_quantized<__nv_bfloat16>(
+            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, quantize_bf16_value, 1e-1f, 1e-1f);
         }
       }
       else
       {
+        const auto quantize = tf32_mode ? quantize_tf32_value : identity_value;
+        const float tol     = tf32_mode ? 2e-2f : 1e-3f;
+
         if (full_verify)
         {
           auto c_full = gather_device_matrix(static_cast<const float *>(c_dev), static_cast<std::size_t>(m) * static_cast<std::size_t>(n));
-          vr          = verify_full<float, float, float>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, c_full, 1e-3f, 1e-3f);
+          if (tf32_mode)
+          {
+            const auto a_ref = quantize_vector(a_host_f, quantize_tf32_value);
+            const auto b_ref = quantize_vector(b_host_f, quantize_tf32_value);
+            vr               = verify_full<float, float, float>(
+              shape, suite, case_name, a_ref, a_rows, a_cols, b_ref, b_rows, b_cols, c_full, tol, tol);
+          }
+          else
+          {
+            vr = verify_full<float, float, float>(
+              shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, c_full, tol, tol);
+          }
         }
         else
         {
           const auto idx = pick_sample_indices(m, n);
           auto samples   = gather_device_samples(static_cast<const float *>(c_dev), n, idx);
-          vr             = verify_sampled<float, float, float>(
-            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, 1e-3f, 1e-3f);
+          vr             = verify_sampled_f32_inputs_quantized<float>(
+            shape, suite, case_name, a_host_f, a_rows, a_cols, b_host_f, b_rows, b_cols, samples, idx, quantize, tol, tol);
         }
       }
 

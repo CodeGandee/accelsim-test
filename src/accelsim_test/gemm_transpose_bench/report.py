@@ -290,7 +290,7 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `dtype_pair`: Normalized dtype description `A,B->C (compute,math_mode)`.")
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*N*N*N`).")
     lines.append("- `A@B(ms)` etc: Mean GPU time in milliseconds from the NVBench timing run (GEMM-only; transpose materialization is outside timing).")
-    lines.append("- `A@B(algo_id)` etc: cuBLASLt algorithm ID selected for that case (from `cublasLtMatmulAlgoGetHeuristic`).")
+    lines.append("- `A@B(algo_id)` etc: cuBLASLt algorithm ID used for that case (heuristic-selected or pinned via algo-map).")
     lines.append("- `verify`: `pass` if all cases in the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("### Non-square Suite")
@@ -301,7 +301,7 @@ def generate_report(results: dict[str, Any]) -> str:
     lines.append("- `flop_count`: Theoretical GEMM FLOPs (`2*M*N*K`) used for row-consistency across compared cases.")
     lines.append("- `A.T@B(ms)` / `copy(A.T)@B(ms)`: Times for transpose-A suite (`nonsquare_atb`).")
     lines.append("- `A@B.T(ms)` / `A@copy(B.T)(ms)`: Times for transpose-B suite (`nonsquare_abt`).")
-    lines.append("- `...(algo_id)`: cuBLASLt algorithm ID selected for that record; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
+    lines.append("- `...(algo_id)`: cuBLASLt algorithm ID used for that record; full per-record config lives in `results.json` under `record.cublaslt.algo`.")
     lines.append("- `verify`: `pass` if all present non-square records for the row passed verification; otherwise `fail`.")
     lines.append("")
     lines.append("Notes:")
@@ -316,6 +316,159 @@ def generate_report(results: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_all_timings(results: dict[str, Any]) -> str:
+    records = list(results.get("records", []))
+
+    def _algo_field(rec: dict[str, Any], key: str) -> int | None:
+        algo = rec.get("cublaslt", {}).get("algo", {})
+        v = algo.get(key)
+        return int(v) if isinstance(v, int) else None
+
+    def _time_ms(rec: dict[str, Any]) -> float | None:
+        return rec.get("timing", {}).get("gpu_time_ms")
+
+    def _samples(rec: dict[str, Any]) -> int | None:
+        v = rec.get("timing", {}).get("samples")
+        return int(v) if isinstance(v, int) else None
+
+    lines: list[str] = []
+    lines.append("# GEMM Transpose Benchmark Timings (All Records)")
+    lines.append("")
+    run = results.get("run", {})
+    lines.append(f"- Branch: `{run.get('git', {}).get('branch', '')}`")
+    lines.append(f"- Commit: `{run.get('git', {}).get('commit', '')}`")
+    lines.append(f"- Status: `{run.get('status', '')}`")
+    lines.append("")
+
+    header = [
+        "suite",
+        "case",
+        "M",
+        "N",
+        "K",
+        "dtype_pair",
+        "time(ms)",
+        "samples",
+        "verify",
+        "algo_id",
+        "tile_id",
+        "splitk_num",
+        "stages_id",
+    ]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("|" + "|".join(["---"] * len(header)) + "|")
+
+    def _sort_key(rec: dict[str, Any]) -> tuple:
+        s = rec.get("shape", {})
+        return (
+            str(rec.get("suite", "")),
+            str(rec.get("case", "")),
+            int(s.get("m", 0)),
+            int(s.get("n", 0)),
+            int(s.get("k", 0)),
+            _dtype_key(rec.get("dtype", {})),
+        )
+
+    for r in sorted(records, key=_sort_key):
+        s = r.get("shape", {})
+        m = int(s.get("m", 0))
+        n = int(s.get("n", 0))
+        k = int(s.get("k", 0))
+        dtype_label = _dtype_label(r.get("dtype", {}))
+        verify = str(r.get("verification", {}).get("status", "unknown"))
+
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(r.get("suite", "")),
+                    str(r.get("case", "")),
+                    str(m),
+                    str(n),
+                    str(k),
+                    f"`{dtype_label}`",
+                    _format_float(_time_ms(r)),
+                    _format_int(_samples(r)),
+                    verify,
+                    _format_int(_algo_field(r, "id")),
+                    _format_int(_algo_field(r, "tile_id")),
+                    _format_int(_algo_field(r, "splitk_num")),
+                    _format_int(_algo_field(r, "stages_id")),
+                ]
+            )
+            + " |"
+        )
+
+    lines.append("")
+    lines.append("Notes:")
+    lines.append("- `time(ms)` is the NVBench cold GPU mean time for the record.")
+    lines.append("- `samples` is `nv/cold/sample_size` for the record.")
+    lines.append("- `algo_id` and related fields come from `record.cublaslt.algo` in `results.json`.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_stakeholder_report_template(*, out_dir: Path, results: dict[str, Any]) -> None:
+    path = out_dir / "stakeholder_report.md"
+    if path.exists():
+        return
+
+    run = results.get("run", {})
+    git = run.get("git", {})
+    env = run.get("environment", {})
+    gpu = env.get("gpu", {})
+    cuda = env.get("cuda", {})
+    nvbench = env.get("nvbench", {})
+    nvbench_settings = run.get("settings", {}).get("nvbench", {})
+
+    path.write_text(
+        "\n".join(
+            [
+                "# GEMM Transpose Sweep — Stakeholder Report",
+                "",
+                "- Run ID: `TBD`",
+                f"- Git: `{git.get('branch', '')}` @ `{git.get('commit', '')}` (dirty: `{git.get('dirty', '')}`)",
+                f"- GPU: `{gpu.get('device_name', '')}` ({gpu.get('sm', '')}), driver `{gpu.get('driver_version', '')}`",
+                f"- CUDA toolkit: `{cuda.get('toolkit_version', '')}`",
+                f"- Pixi env: `{env.get('pixi_env', '')}`",
+                f"- NVBench: `{nvbench.get('version', '')}` (source: `{nvbench.get('source_path', '')}`)",
+                f"- NVBench settings: `{nvbench_settings}`",
+                "",
+                "## Executive Summary",
+                "",
+                "- TBD",
+                "",
+                "## Key Results (curated)",
+                "",
+                "- TBD (select representative rows from `all_timings.md`)",
+                "",
+                "## Analysis",
+                "",
+                "- TBD (algorithm selection boundaries, stability, etc.)",
+                "",
+                "## Correctness & Verification (critical path)",
+                "",
+                "- TBD (include code references for timed region, cuBLASLt call, view vs copy semantics, and verification approach)",
+                "",
+                "## Reproduction",
+                "",
+                "- Build: `pixi run -e cuda13 gemm-transpose-build`",
+                "- Sweep: `pixi run -e cuda13 gemm-transpose sweep --out-dir <abs_out_dir>`",
+                "- Reporting: `pixi run -e cuda13 gemm-transpose report --out-dir <abs_out_dir>`",
+                "",
+                "## Appendix",
+                "",
+                "- Generated summary: `report.md`",
+                "- Full timing table: `all_timings.md`",
+                "- Normalized export: `results.json`",
+                "- Raw NVBench JSON: `raw/`",
+                "",
+            ]
+        )
+        + "\n"
+    )
+
+
 def report_run(*, out_dir: Path) -> int:
     results_path = out_dir / "results.json"
     if not results_path.exists():
@@ -324,4 +477,18 @@ def report_run(*, out_dir: Path) -> int:
     results = _load_results(results_path)
     report_md = generate_report(results)
     (out_dir / "report.md").write_text(report_md + "\n")
-    return 0
+    all_md = generate_all_timings(results)
+    (out_dir / "all_timings.md").write_text(all_md + "\n")
+    write_stakeholder_report_template(out_dir=out_dir, results=results)
+    return 0 if results.get("run", {}).get("status") == "pass" else 1
+
+
+def all_timings_run(*, out_dir: Path) -> int:
+    results_path = out_dir / "results.json"
+    if not results_path.exists():
+        raise FileNotFoundError(f"Missing results.json at {results_path}")
+
+    results = _load_results(results_path)
+    all_md = generate_all_timings(results)
+    (out_dir / "all_timings.md").write_text(all_md + "\n")
+    return 0 if results.get("run", {}).get("status") == "pass" else 1

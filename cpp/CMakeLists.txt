@@ -49,6 +49,7 @@ target_link_libraries(gemm_transpose_bench PRIVATE
     nvbench::main
     CUDA::cublasLt
     CUDA::cudart
+    nlohmann_json::nlohmann_json
 )
 
 install(TARGETS accelsim_profiling DESTINATION "."

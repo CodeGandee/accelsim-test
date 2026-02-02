@@ -141,6 +141,7 @@ def normalize_nvbench_results(
     nvbench_source_path: str,
     artifacts_dir: Path,
     nvbench_settings: dict[str, Any],
+    cublaslt_settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
 
@@ -303,6 +304,10 @@ def normalize_nvbench_results(
     driver_version = _detect_nvidia_driver_version()
     cuda_toolkit_version = _detect_cuda_toolkit_version()
 
+    settings_obj: dict[str, Any] = {"nvbench": nvbench_settings}
+    if cublaslt_settings is not None:
+        settings_obj["cublaslt"] = cublaslt_settings
+
     run_obj = {
         "run_id": f"{git_commit}",
         "started_at": now,
@@ -317,7 +322,7 @@ def normalize_nvbench_results(
             "pixi_env": pixi_env,
             "nvbench": {"source_path": nvbench_source_path, "version": str(nvbench.get("meta", {}).get("version", {}).get("nvbench", {}).get("string", ""))},
         },
-        "settings": {"nvbench": nvbench_settings},
+        "settings": settings_obj,
         "artifacts_dir": str(artifacts_dir),
     }
 
