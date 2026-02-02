@@ -18,6 +18,14 @@ cuBLASLt defines several specialized layouts that are "opaque" (you shouldn't ma
 - `CUBLASLT_ORDER_COL4_4R2_8C`: for weights (Turing/Ampere).
 - `CUBLASLT_ORDER_COL32_2R_4R4`: for weights (Ampere+).
 
+### Understanding "A/C Matrices" vs "Weights"
+
+In the GEMM equation $C = \alpha \times (A \times B) + \beta \times C$:
+
+-   **A (Input / Activation):** The dynamic input data (e.g., batch of tokens). Since this changes every request, we often keep it in standard layouts or simpler aligned layouts like `COL32`.
+-   **B (Weights):** The static model parameters. Since these are constant, we can afford the expensive one-time transformation into complex, read-optimized layouts like `COL32_2R_4R4`.
+-   **C (Output):** The result destination. Like A, it is dynamic and often uses `COL32` or standard layouts to align with warp memory transactions.
+
 **Key Strategy:**
 1.  Keep inputs in standard layout (Row/Col Major) if possible.
 2.  **Transform** the static weight matrix (`B`) into a packed layout using `cublasLtMatrixTransform` *before* the inference loop.
