@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
 from pathlib import Path
 
 from .config import CASES, SUITES, iter_dtypes, iter_shapes
-from .export import normalize_nvbench_results, parse_nvbench_json, write_results
+from .export import normalize_nvbench_results, parse_nvbench_json, validate_results_schema, write_results
 from .report import compute_ratios_in_place
 
 
@@ -84,12 +85,59 @@ def _git_info(repo_root: Path) -> tuple[str, str, bool]:
         return "unknown", "unknown", False
 
 
+def _record_key(rec: dict) -> tuple:
+    s = rec.get("shape", {})
+    d = rec.get("dtype", {})
+    return (
+        rec.get("suite"),
+        rec.get("case"),
+        int(s.get("m", 0)),
+        int(s.get("n", 0)),
+        int(s.get("k", 0)),
+        str(d.get("a", "")),
+        str(d.get("b", "")),
+        str(d.get("c", "")),
+        str(d.get("compute", "")),
+        str(d.get("math_mode", "")),
+    )
+
+
+def _merge_results(existing: dict, new: dict) -> dict:
+    merged = dict(existing)
+    merged_run = dict(existing.get("run", {}))
+
+    # Keep the original started_at if present; update finished_at to the newest.
+    new_run = new.get("run", {})
+    if isinstance(new_run, dict):
+        if "finished_at" in new_run:
+            merged_run["finished_at"] = new_run["finished_at"]
+        if "artifacts_dir" in new_run:
+            merged_run["artifacts_dir"] = new_run["artifacts_dir"]
+        # Merge failure state: any failure makes the run fail.
+        if new_run.get("status") == "fail":
+            merged_run["status"] = "fail"
+            merged_run["failure_reason"] = new_run.get("failure_reason", "")
+
+    merged["run"] = merged_run
+
+    by_key: dict[tuple, dict] = {}
+    for r in existing.get("records", []) or []:
+        by_key[_record_key(r)] = r
+    for r in new.get("records", []) or []:
+        by_key[_record_key(r)] = r
+    merged["records"] = list(by_key.values())
+
+    compute_ratios_in_place(merged)
+    validate_results_schema(merged)
+    return merged
+
+
 def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench_args: str) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "raw").mkdir(parents=True, exist_ok=True)
 
     bench_exe = find_benchmark_executable()
-    nvbench_json_path = out_dir / "raw" / "nvbench_timing.json"
+    nvbench_json_path = out_dir / "raw" / ("nvbench_timing.json" if suite == "all" else f"nvbench_timing_{suite}.json")
 
     suites = list(SUITES) if suite == "all" else [suite]
     dtype_keys = [d.key for d in iter_dtypes(dtype)]
@@ -136,7 +184,11 @@ def timing_run(*, out_dir: Path, suite: str, dtype: str, shape_set: str, nvbench
         nvbench_settings={"stopping_criterion": "stdrel", "min_time_s": 0.5, "max_noise_pct": 0.5, "min_samples": 10},
     )
     compute_ratios_in_place(results)
-    write_results(out_dir / "results.json", results)
+    results_path = out_dir / "results.json"
+    if results_path.exists():
+        existing = json.loads(results_path.read_text())
+        results = _merge_results(existing, results)
+    write_results(results_path, results)
 
     # Fail overall run if any verification failed.
     return 0 if results["run"]["status"] == "pass" else 1

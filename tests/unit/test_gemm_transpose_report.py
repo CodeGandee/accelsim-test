@@ -61,4 +61,4 @@ def test_generate_report_contains_required_tables() -> None:
     assert "slow_ATB_view_vs_AB" in report_md
     assert "## Non-square Suite" in report_md
     assert "over_ATB_copyA_vs_view" in report_md
-
+    assert "## Column Definitions" in report_md
