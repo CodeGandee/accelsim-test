@@ -85,7 +85,9 @@ void transform_weights_to_packed(cublasLtHandle_t lt_handle,
 
 ## Using the Packed Weights
 
-Once `d_B_packed` is populated, use it in your matmul. Crucially, the **layout descriptor** you pass to `cublasLtMatmul` must match the packed format.
+Once `d_B_packed` is populated, use it in your matmul. Crucially, the **layout descriptor** you pass to `cublasLtMatmul` must match the packed format, AND you typically must specify **`trans_b = CUBLAS_OP_T`** in the matmul descriptor.
+
+The physical packing arranges the data for the Tensor Core, but the kernel usually expects the operation description to match the Tensor Core's intrinsic `D = A x B^T + C` behavior.
 
 ```cpp
 // In your inference loop:
@@ -93,6 +95,13 @@ cublasLtMatrixLayout_t B_packed_desc;
 cublasLtMatrixLayoutCreate(&B_packed_desc, CUDA_R_8I, k, n, k);
 cublasLtOrder_t packed_order = CUBLASLT_ORDER_COL32_2R_4R4;
 cublasLtMatrixLayoutSetAttribute(B_packed_desc, CUBLASLT_MATRIX_LAYOUT_ORDER, &packed_order, sizeof(packed_order));
+
+// Matmul Descriptor: Specify B is transposed
+cublasLtMatmulDesc_t matmul_desc;
+cublasLtMatmulDescCreate(&matmul_desc, compute_type, scale_type);
+cublasOperation_t op_b = CUBLAS_OP_T;
+cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &op_a, sizeof(op_a));
+cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &op_b, sizeof(op_b)); // <--- Important!
 
 cublasLtMatmul(lt_handle,
                matmul_desc,
