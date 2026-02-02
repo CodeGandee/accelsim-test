@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "revise the current spec according to the updated context/tasks/req-cuda-gemm-test.md , and create 5 user stories"
 
+## Clarifications
+
+### Session 2026-02-02
+
+- Q: What does “copy(Aᵀ)” timing include? → A: Materialize the transpose outside the timed region; time GEMM only.
+- Q: How should `flop_count` be defined for `int8` cases? → A: Keep `flop_count = 2*M*N*K` for consistency, and report total compute only (no per-second throughput).
+- Q: In profiling-enabled runs, do we profile every configuration/case or only a subset? → A: Profile every executed configuration/case and link an artifact to each result record.
+- Q: Should the final report tables include all executed configurations by default? → A: Yes—include all executed configurations/cases by default.
+- Q: What should happen if any correctness check fails? → A: Mark failing cases and fail the overall run; still export results for debugging.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Run square-suite benchmark (Priority: P1)
@@ -18,7 +28,7 @@ As a performance engineer, I want to benchmark matrix multiplication when one op
 **Acceptance Scenarios**:
 
 1. **Given** square matrices `A[N,N]` and `B[N,N]`, **When** I run the square suite, **Then** results are produced for all required cases: `A@B`, `Aᵀ@B`, `A@Bᵀ`, `copy(Aᵀ)@B`, `A@copy(Bᵀ)`.
-2. **Given** square-suite results, **When** I review the comparison fields, **Then** the report includes slowdowns relative to `A@B` and overhead factors comparing materialized-transpose vs transpose-view.
+2. **Given** square-suite results, **When** I review the comparison fields, **Then** the report includes slowdowns relative to `A@B` and overhead factors comparing transpose-view vs pre-materialized-transpose GEMM (with the transpose materialization performed outside timing).
 
 ---
 
@@ -58,12 +68,13 @@ As an analyst, I want benchmark results exported in a structured, machine-readab
 
 **Why this priority**: Structured export is required for automated analysis, regression tracking, and reproducibility.
 
-**Independent Test**: Run a small sweep and confirm every output record contains configuration parameters, timing fields, `flop_count`, derived throughput fields, and verification status.
+**Independent Test**: Run a small sweep and confirm every output record contains configuration parameters, timing fields, `flop_count`, ratio fields (where applicable), and verification status.
 
 **Acceptance Scenarios**:
 
 1. **Given** a benchmark sweep completes, **When** I load the exported dataset, **Then** every record includes the configuration (suite, shape, numeric type pair, case), the measured timing, and environment metadata.
 2. **Given** a single comparison row in the final report, **When** I check the computed FLOP count, **Then** all cases on that row share the same `flop_count` (otherwise they are split into separate rows).
+3. **Given** a materialized-transpose case (`copy(Aᵀ)` or `copy(Bᵀ)`), **When** I review the reported timing fields, **Then** the timing reflects GEMM only and excludes the transpose materialization step.
 
 ---
 
@@ -104,13 +115,18 @@ As a stakeholder, I want a concise report that summarizes the impact of transpos
 - **FR-006**: Each case MUST be executed enough times (with warmup) to produce a stable average timing suitable for comparison.
 - **FR-007**: Timing MUST reflect accelerator execution time for the matrix multiplication and MUST exclude data transfer time (moving inputs/outputs to/from accelerator memory).
 - **FR-008**: For each configuration/case, the system MUST compute and export a theoretical operation count (`flop_count`, measured in floating-point operations) and it MUST be consistent across all cases compared within a single report row.
-- **FR-009**: The system MUST export results in a structured machine-readable format containing, at minimum: suite, shape parameters, numeric type pair, case identifier, average timing, `flop_count`, derived throughput, verification status, and environment metadata.
+- **FR-008a**: For materialized-transpose cases (`copy(Aᵀ)` / `copy(Bᵀ)`), the transpose materialization MUST occur outside the timed region; the reported timing MUST measure GEMM only.
+- **FR-008b**: For integer cases, the system MUST compute `flop_count = 2*M*N*K` for row-consistency, and MUST NOT report per-second throughput metrics (only total compute via `flop_count`).
+- **FR-009**: The system MUST export results in a structured machine-readable format containing, at minimum: suite, shape parameters, numeric type pair, case identifier, average timing, `flop_count`, ratio fields (where applicable), verification status, and environment metadata.
 - **FR-010**: The system MUST generate a stakeholder report containing:
   - a square-suite comparison table with per-case timings and ratios relative to `A@B` plus materialization-overhead ratios,
   - a non-square-suite comparison table with per-case timings and materialization-overhead ratios,
   - and a short conclusions section explaining observed trends.
+- **FR-010a**: The stakeholder report tables MUST include all executed configurations/cases by default (not a filtered subset).
 - **FR-011**: The system MUST perform correctness verification for every configuration/case against an independent reference computation and record pass/fail plus an error summary.
+- **FR-011a**: If any correctness check fails, the overall run MUST be marked as failed (unsuccessful overall), while still exporting results with failing cases clearly flagged.
 - **FR-012**: The system MUST support a profiling-enabled run mode that captures low-level execution behavior per configuration/case and links the artifacts to exported results for analysis.
+- **FR-012a**: Profiling-enabled runs MUST produce attributable artifacts for every executed configuration/case (not only a subset).
 
 ### Assumptions & Dependencies
 
@@ -123,7 +139,7 @@ As a stakeholder, I want a concise report that summarizes the impact of transpos
 
 - **Suite**: Whether a run belongs to square or non-square comparisons.
 - **Configuration**: Shape parameters (N or M/N/K), numeric type pair, and case identifier.
-- **Result Record**: Timing, `flop_count`, throughput, ratios (as applicable), and verification status for a configuration/case.
+- **Result Record**: Timing, `flop_count`, ratios (as applicable), and verification status for a configuration/case.
 - **Run Metadata**: Hardware/software environment details needed to interpret and reproduce results.
 - **Report**: Stakeholder-facing summary tables and conclusions derived from result records.
 - **Profiling Artifact**: Per-configuration/case trace/report data used to explain observed performance differences.
