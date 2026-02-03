@@ -31,6 +31,9 @@ class accelsim_profilingRecipe(ConanFile):
         self.requires("nlohmann_json/3.11.3")
         self.requires("rapidcsv/8.84")
 
+    def build_requirements(self):
+        self.test_requires("catch2/3.7.1")
+
     def generate(self):
         deps = CMakeDeps(self)
         deps.generate()

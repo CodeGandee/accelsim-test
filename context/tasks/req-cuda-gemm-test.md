@@ -5,18 +5,28 @@ Matrix multiplication performance on GPUs depends heavily on operand layouts, tr
 
 This task defines a benchmark to quantify performance differences between:
 
-- `C = matmul(A, B)`
-- `C = matmul(A.T, B)`
-- `C = matmul(A, B.T)`
+- **Square suite (A and B are `N×N`)**:
+  - `matmul(A, B)`
+  - `matmul(A.T, B)`
+  - `matmul(A, B.T)`
+  - `matmul(copy(A.T), B)`
+  - `matmul(A, copy(B.T))`
+- **Non-square suite (transpose-A and transpose-B; FLOP-matched)**:
+  - given `A_atb` of size `K×M` and `B_atb` of size `K×N`:
+    - `matmul(A_atb.T, B_atb)`
+    - `matmul(copy(A_atb.T), B_atb)`
+  - given `A_abt` of size `M×K` and `B_abt` of size `N×K`:
+    - `matmul(A_abt, B_abt.T)`
+    - `matmul(A_abt, copy(B_abt.T))`
 
 on CUDA, under controlled conditions.
 
 ## Goal
-Produce a reproducible benchmark (microbenchmark + reporting) that measures and explains the performance differences among the three matmul variants across a representative set of shapes and dtypes on NVIDIA GPUs.
+Produce a reproducible benchmark (microbenchmark + reporting) that measures and explains the performance differences among the specified matmul cases across a representative set of shapes and dtypes on NVIDIA GPUs.
 
 ## Scope
 ### In scope
-- CUDA GPU benchmarking for the three matmul variants above.
+- CUDA GPU benchmarking for the matmul cases above.
 - Use cuBLASLt for GEMM (no custom GEMM kernels).
 - Multiple operand **layouts**:
   - contiguous (`contiguous()` in row-major frameworks)
@@ -41,18 +51,35 @@ Produce a reproducible benchmark (microbenchmark + reporting) that measures and 
 - **Transpose flag (cuBLASLt)**: requesting transpose via matmul descriptors (e.g., `op(A)=T` / `op(B)=T`) without explicitly transposing data.
 - **Materialized transpose**: `A_T = A.T.contiguous()`; creates a new contiguous buffer.
 - **Variant naming** (assuming `A` is `[M,K]` and `B` is `[K,N]`):
-  - `AB`    := `A @ B`              (baseline)
-  - `ATB`   := `A.T @ B`
-  - `ABT`   := `A @ B.T`
+  - Square suite (`A[N,N]`, `B[N,N]`):
+    - `AB`         := `A @ B`
+    - `ATB_view`   := `A.T @ B`
+    - `ABT_view`   := `A @ B.T`
+    - `ATB_copyA`  := `copy(A.T) @ B`
+    - `ABT_copyB`  := `A @ copy(B.T)`
+  - Non-square suite:
+    - transpose-A (`A_atb[K,M]`, `B_atb[K,N]`):
+      - `ATB_view`  := `A_atb.T @ B_atb`
+      - `ATB_copyA` := `copy(A_atb.T) @ B_atb`
+    - transpose-B (`A_abt[M,K]`, `B_abt[N,K]`):
+      - `ABT_view`  := `A_abt @ B_abt.T`
+      - `ABT_copyB` := `A_abt @ copy(B_abt.T)`
+
+## Important constraint (non-square matrices)
+If `AB` is defined as `A[M,K] @ B[K,N]`, then:
+- `A.T @ B` is only defined when `B` has shape `[M,N]` (because `A.T` is `[K,M]`).
+- `A @ B.T` is only defined when `A` has shape `[M,N]` (because `B.T` is `[N,K]`).
+
+Therefore, for **rectangular** matrices, it is impossible to compare `A @ B` vs `A.T @ B` vs `A @ B.T` while keeping the *exact same stored* `A[M,K]` and `B[K,N]` for all three expressions. The only case where all three expressions are simultaneously well-defined with the same `A` and `B` is the fully square case `M=N=K`.
 
 ## Primary questions to answer
-1. When `A.T`/`B.T` are views (non-contiguous), how much slower are `ATB` and `ABT` vs `AB`?
+1. In the square suite, how do `ATB_view` and `ABT_view` compare to `AB`?
 2. Is slowdown primarily due to:
    - strided memory access in the GEMM kernel, and/or
    - implicit materialization (hidden copies), and/or
    - different algorithm selection (tensor core usage, tile shapes, etc.)?
-3. Does explicitly materializing transposes (`.contiguous()`) restore performance, and what is the copy overhead?
-4. How do these effects vary with (M,N,K), dtype, and alignment?
+3. What is the overhead of explicit transpose materialization (compare `*_view` vs `*_copy*`)?
+4. How do these effects vary with shape (square vs non-square, aspect ratios), dtype pair, and alignment?
 
 ## Requirements
 ### Functional requirements
@@ -63,17 +90,22 @@ Produce a reproducible benchmark (microbenchmark + reporting) that measures and 
   - Use NVBench's `state.exec(nvbench::exec_tag::sync, ...)` pattern for kernel execution.
 - Provide a CLI or scriptable entry point (via NVBench's built-in CLI or a custom wrapper) that supports:
   - device selection (`-d`)
-  - axis definition for M, N, K, and Batch Size
-  - type selection (float16, float32, etc.)
-  - layout/transpose modes (`AB`, `ATB`, `ABT`)
+  - axis definition for:
+    - square suite: `N` (and optional Batch Size)
+    - non-square suite: `M`, `N`, `K` (and optional Batch Size)
+  - dtype-pair selection: `(int8, int8)`, `(int8, fp16)`, `(fp16, int8)`, `(fp16, fp16)`, `(fp32, fp32)`, `(fp16, fp32)`, `(fp32, fp16)`
+  - case selection:
+    - square suite: `AB`, `ATB_view`, `ABT_view`, `ATB_copyA`, `ABT_copyB`
+    - non-square suite: `ATB_view`, `ATB_copyA`, `ABT_view`, `ABT_copyB`
 - **Reporting:** Use NVBench's `--json` or `--csv` output features to generate machine-readable results.
 - GEMM implementation MUST call cuBLASLt (e.g., `cublasLtMatmul`) and MUST NOT use a hand-written GEMM kernel.
 - The benchmark MUST clearly separate and label:
   - GEMM-with-transpose-flags (e.g., `op(A)=T` / `op(B)=T` in cuBLASLt) which should not require data movement
   - explicit transpose materialization + GEMM (to measure copy cost and cache effects) - implement as separate benchmark cases.
-- Implement the three matmul variants (`AB`, `ATB`, `ABT`) in a way that:
-  - guarantees the intended operand shapes
-  - avoids accidental graph captures or compilation side-effects unless explicitly enabled
+- Implement the benchmark cases (square and non-square suites) in a way that:
+  - guarantees the intended operand shapes for each case
+  - guarantees “no materialization” cases are implemented via transpose flags (not an explicit transpose copy)
+  - avoids accidental extra allocations or copies in the timed region
 - Validate correctness minimally:
   - MUST validate GPU results against a CPU reference computed with Eigen for every configuration/variant (sanity check).
     - The CPU reference MUST be computed outside the timed region (or in a separate "validation" pass).
@@ -116,8 +148,10 @@ The benchmark must cover at least:
   - fp32 (with a toggle for tf32 if relevant)
   - dtype pairs to test (if supported by the backend/framework):
     - `matmul(int8, int8)` (typically int32 accumulate; output type depends on API)
+    - `matmul(int8, fp16)` and `matmul(fp16, int8)`
     - `matmul(fp16, fp16)`
     - `matmul(fp32, fp32)` (with optional TF32 toggle)
+    - `matmul(fp16, fp32)` and `matmul(fp32, fp16)` (may imply casting or a specific mixed-type path; MUST record what actually happened)
 - Layout modes (minimum):
   - contiguous (baseline)
   - transpose-without-materialization (framework transpose view and/or cuBLASLt transpose flag)
@@ -128,16 +162,12 @@ These concrete configurations are chosen to highlight two regimes:
 1) **Cache-resident**: `A + B + C (+ one extra transpose materialization)` fits in L2.
 2) **Cache-spill**: `A + B + C` may fit in L2, but `+ materialized transpose copy` does **not**, so any implicit/explicit transpose duplication is impossible for L2 to hold.
 
-Implementation note (shape consistency across variants):
-There are two valid ways to implement the three variants for the same GEMM `(M,N,K)`:
+Implementation note (what we compare, and how we keep FLOPs comparable):
 
-- **cuBLASLt transpose-flag approach (preferred)**:
-  - store `A[M,K]`, `B[K,N]` and request `ATB`/`ABT` via transpose flags (`op(A)=T`, `op(B)=T`) without changing storage.
-- **Framework transpose-view approach (optional)**:
-  - `AB`: store `A[M,K]`, `B[K,N]`
-  - `ATB`: store `A[K,M]` (so `A.T` is `[M,K]`), `B[K,N]`
-  - `ABT`: store `A[M,K]`, `B[N,K]` (so `B.T` is `[K,N]`)
-This keeps the arithmetic identical across `AB`/`ATB`/`ABT` while still using transpose *views* in frameworks.
+- **Square suite (`N×N`)** is the strict comparison: same `A` and `B`, same output shape, same FLOPs.
+- **Non-square suite** intentionally omits `A @ B` (because it is not defined for `A[K,M]` and `B[K,N]`) and instead measures:
+  - transpose-A (`A_atb.T @ B_atb`) and transpose-B (`A_abt @ B_abt.T`) on the same `(M,N,K)` so all measured GEMMs have identical FLOP count `2*M*N*K`.
+  - view/flag (“no materialization”) vs explicit `copy(·)` (“materialize then GEMM”) within each transpose direction.
 
 #### Cache-resident (L2-fit, even if a transpose is materialized)
 - fp16/bf16 square: `M=N=K` in {1024, 1536, 2048}
@@ -205,7 +235,7 @@ Requirements:
   - compute utilization signals (SM throughput, tensor core usage/pipe activity when applicable)
 - Save artifacts per configuration:
   - `*.ncu-rep` report file
-  - an exported summary (CSV or text) sufficient to diff `AB` vs `ATB` vs `ABT`
+  - an exported summary (CSV or text) sufficient to diff view vs copy cases (and, for square suite, compare `AB` vs transpose cases)
 
 Implementation guidance (not prescriptive):
 - Use NVTX ranges (if supported by the framework) to bracket the measured matmul region so `ncu` can filter/attribute kernels cleanly.
@@ -214,18 +244,48 @@ Implementation guidance (not prescriptive):
 ## Outputs and reporting
 Minimum outputs:
 - A table (Markdown and/or CSV) showing for each configuration:
-  - `AB`, `ATB`, `ABT` time (ms) and TFLOP/s
-  - slowdown factors vs `AB`
+  - per-case time (ms) and TFLOP/s
 - A short analysis section per dtype explaining observed patterns:
   - when non-contiguous views cause fallback/slowdown
   - when explicit `.contiguous()` helps (and the cost of making it contiguous)
 - For each configuration, references to the corresponding `ncu` report artifacts used to interpret the behavior.
 
+### Final comparison table (stakeholder-facing)
+The final report MUST include a stakeholder-facing comparison table (in Markdown) derived from the structured export.
+
+**Key principle:** show results **per configuration** (shape + dtype pair + suite) with **all relevant cases on one row**, using only physically measured timing values (and optionally throughput derived from `flop_count / time`).
+
+**FLOP consistency requirement:** within a single table row, all compared cases MUST have the same theoretical `flop_count`. If a set of cases would have different FLOP counts, they MUST be split into separate rows (or excluded from direct comparisons).
+
+#### Table A: Square suite summary (`A[N,N]`, `B[N,N]`)
+One row per `(N, dtype_pair, layout_mode, math_mode)`:
+
+| suite | N | dtype_pair | flop_count | timed_ms_AB | timed_ms_ATB_view | timed_ms_ABT_view | timed_ms_ATB_copyA | timed_ms_ABT_copyB | verify |
+|------:|--:|------------|----------:|------------:|------------------:|------------------:|-------------------:|-------------------:|--------|
+| square |  |            |           |             |                   |                   |                    |                    |        |
+
+Definitions:
+- `flop_count`: theoretical GEMM FLOP count for the case (`2 * N * N * N`).
+- `timed_ms_*`: average per-matmul time from the **no-profiler** run.
+- `verify`: pass/fail (+ optional error summary).
+
+#### Table B: Non-square suite summary (FLOP-matched; transpose-A and transpose-B)
+One row per `(M,N,K, dtype_pair, layout_mode, math_mode)`:
+
+| suite | M | N | K | dtype_pair | flop_count | timed_ms_ATB_view | timed_ms_ATB_copyA | timed_ms_ABT_view | timed_ms_ABT_copyB | verify |
+|------:|--:|--:|--:|------------|----------:|------------------:|-------------------:|------------------:|-------------------:|--------|
+| non_square |  |  |  |           |           |                   |                    |                   |                    |        |
+
+Notes:
+- The non-square table intentionally does not include `AB` because the non-square suite is defined around `A_atb[K,M] @ B_atb[K,N]` (transpose-A) and `A_abt[M,K] @ B_abt[N,K]` (transpose-B).
+- `flop_count` is `2 * M * N * K` for all non-square cases in this table.
+- The report SHOULD also include TFLOP/s columns (computed using `flop_count / time_seconds`) for each case when comparing across shapes.
+
 ## Acceptance criteria
 - Running the benchmark on a CUDA machine produces:
-  - results for all three variants across the required shape/dtype/layout matrix
+  - results for all required cases across the required shape/dtype matrix (square and non-square suites)
   - exported CSV/JSONL with metadata and timing stats
-  - a summary report that clearly highlights when/why `ATB` or `ABT` is slower than `AB`
+  - a summary report that clearly highlights when/why transpose-without-materialization vs transpose-with-materialization differs, and when transpose changes performance in the square suite
   - `ncu` reports for all configurations, enabling kernel-level explanation of observed slowdowns
 - Results are stable enough that reruns differ by no more than ~5–10% for the same configuration (excluding known noisy environments).
 
@@ -254,7 +314,9 @@ This list consolidates the "Benchmark Matrix" and "Suggested Initial Sweep" for 
   - (256, 992, 256)
   - (256, 256, 992)
   - (960, 320, 640)
-- **Variants:** AB, ATB, ABT
+- **Cases:**
+  - Square suite: `AB`, `ATB_view`, `ABT_view`, `ATB_copyA`, `ABT_copyB`
+  - Non-square suite: `ATB_view`, `ATB_copyA`, `ABT_view`, `ABT_copyB`
 
 ### 2. Cache-Resident (Fits in L2)
 *Goal: High throughput, minimal DRAM traffic.*
@@ -287,6 +349,8 @@ This list consolidates the "Benchmark Matrix" and "Suggested Initial Sweep" for 
   - `fp32` (Simt/TF32 path)
   - `int8` (Optional/Advanced: `int8` inputs, `int32` accum)
 - **Layouts:**
-  - Baseline: `A` (RowMajor/ColMajor), `B` (RowMajor/ColMajor) -> `C`
+  - Square suite operands: `A[N,N]`, `B[N,N]`
+  - Non-square transpose-A operands: `A_atb[K,M]`, `B_atb[K,N]`
+  - Non-square transpose-B operands: `A_abt[M,K]`, `B_abt[N,K]`
   - Transpose Views: `A.T`, `B.T`
   - Materialized: `A_new = Copy(A.T)` (Separate Benchmark Case)

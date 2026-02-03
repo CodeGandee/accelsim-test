@@ -52,6 +52,7 @@ Repo tasks (examples):
 pixi run accelsim-build
 pixi run accelsim-smoke
 pixi run accelsim-short-tests
+pixi run pytest
 ```
 
 CUDA build sanity check (uses the `cuda13` env):
@@ -59,6 +60,15 @@ CUDA build sanity check (uses the `cuda13` env):
 ```bash
 pixi run -e cuda13 cuda13-build-check
 ```
+
+## GEMM Transpose Benchmark (NVBench + cuBLASLt)
+
+This repo includes an NVBench-based CUDA GEMM transpose microbenchmark with a Python orchestrator (timing → export → report).
+
+- Quickstart: `specs/002-gemm-transpose-bench/quickstart.md`
+- Build (CUDA 13 env): `pixi run -e cuda13 gemm-transpose-build`
+- Run (timing): `pixi run -e cuda13 gemm-transpose -- timing --out-dir tmp/gemm_transpose_out --suite all --dtype all`
+- Generate report: `pixi run -- python -m accelsim_test.gemm_transpose_bench report --out-dir tmp/gemm_transpose_out`
 
 ## C++ Profiling Scratch (`cpp/`)
 

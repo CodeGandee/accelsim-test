@@ -1,25 +1,47 @@
 # Repository Guidelines
 
+## Project Model (Python + C++)
+
+This is a mixed Python/C++ project:
+
+- **Python is the orchestrator**: environment management (Pixi), repo automation/CLIs, and “glue” code that coordinates one or more C++ builds/runs (executables, modules, functions).
+- **C++ is a subproject** under `cpp/`: built and dependency-managed with **Conan** + **CMake** (often invoked from Python tooling).
+
 ## Project Structure & Module Organization
 
 - `src/accelsim_test/`: main Python package (src-layout).
+- `cpp/`: C++ subproject (Conan 2 + CMake) for performance-critical code and experiments.
 - `tests/`: test scaffolding (`unit/`, `integration/`, `manual/`).
 - `scripts/`: repository helper scripts / CLIs (add new entry points here).
 - `docs/`: Markdown documentation (MkDocs Material is listed as a dependency, but no site config is committed yet).
 - `extern/`: third-party code.
   - `extern/tracked/`: git submodules pinned in `.gitmodules` (reproducible).
   - `extern/orphan/`: local-only clones (git-ignored).
+    - `extern/orphan/nvbench/`: NVBench source tree (primary CUDA benchmarking library for this repo).
 - `context/`: project knowledge base (design notes, plans, issues, logs).
 - `tmp/`: scratch space for experiments; do not rely on it for production inputs.
 
 ## Build, Test, and Development Commands
 
-This repo uses `pixi` for a reproducible Python environment (`pyproject.toml`, `pixi.lock`).
+This repo uses `pixi` at the workspace root for a reproducible Python environment (`pyproject.toml`, `pixi.lock`).
 
 - `pixi install`: create/update the environment from the lockfile.
 - `pixi shell`: activate the environment in your shell.
 - `pixi run ruff check .`: lint the repository (Ruff is a dependency).
 - `pixi run mypy src`: type-check package code (Mypy is a dependency).
+
+The C++ subproject uses Conan + CMake (run from `cpp/`):
+
+- `cd cpp`
+- `conan profile detect --force` (once per machine)
+- `conan install . -b missing`
+- `cmake --preset conan-release`
+- `cmake --build --preset conan-release -j`
+
+Benchmarking:
+- Prefer **NVBench** for CUDA benchmarking (primary measurement harness in this repo).
+- Be rigorous: use NVBench warmup + statistical stopping criteria (`--min-time`, `--max-noise`) and avoid ad-hoc timing loops.
+- NVBench source is expected at `extern/orphan/nvbench/` (use it directly when integrating benchmarks).
 
 Profiling tools:
 - `nsys`: NVIDIA Nsight Systems (available on the host system).
@@ -31,7 +53,8 @@ Submodules (required for external dependencies like Accel-Sim):
 ## Coding Style & Naming Conventions
 
 - Python: 4-space indentation, `snake_case` for functions/variables, `PascalCase` for classes.
-- Prefer type hints for public functions and data structures.
+- Python: prefer type hints for public functions and data structures; keep “orchestration” logic in Python (calling C++ via subprocess, Python bindings, or other adapters).
+- C++: keep code and build logic inside `cpp/` (dependencies in `cpp/conanfile.py`, build via CMake presets); follow existing style in that subproject.
 - Keep library code in `src/` and avoid importing from `extern/` (tracked code is vendor/reference).
 
 ## Testing Guidelines
@@ -48,3 +71,10 @@ PRs should include:
 - What changed and why (link issues/tasks if applicable).
 - How to reproduce/verify (commands + expected output).
 - Notes when updating submodules (new commit SHA/branch and reason).
+
+## Active Technologies
+- Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling) (002-gemm-transpose-bench)
+- Files (structured JSON/CSV export + Markdown report + per-case `*.ncu-rep` artifacts) (002-gemm-transpose-bench)
+
+## Recent Changes
+- 002-gemm-transpose-bench: Added Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling)

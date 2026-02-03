@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/accelsim-test/gemm-transpose-bench/results.schema.json",
+  "title": "GEMM Transpose Benchmark Results",
+  "type": "object",
+  "required": ["schema_version", "run", "records"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version for the normalized export format owned by this repo."
+    },
+    "run": { "$ref": "#/$defs/run" },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/result_record" }
+    }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "required": ["run_id", "started_at", "finished_at", "status", "git", "environment", "settings", "artifacts_dir"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "started_at": { "type": "string", "description": "RFC3339 timestamp." },
+        "finished_at": { "type": "string", "description": "RFC3339 timestamp." },
+        "status": { "type": "string", "enum": ["pass", "fail"] },
+        "failure_reason": { "type": "string" },
+        "git": {
+          "type": "object",
+          "required": ["branch", "commit", "dirty"],
+          "properties": {
+            "branch": { "type": "string" },
+            "commit": { "type": "string" },
+            "dirty": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "environment": { "$ref": "#/$defs/environment" },
+        "settings": { "$ref": "#/$defs/settings" },
+        "artifacts_dir": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": ["platform", "gpu", "cuda", "pixi_env", "nvbench"],
+      "properties": {
+        "platform": {
+          "type": "object",
+          "required": ["os", "arch"],
+          "properties": {
+            "os": { "type": "string" },
+            "arch": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "gpu": {
+          "type": "object",
+          "required": ["device_name"],
+          "properties": {
+            "device_name": { "type": "string" },
+            "sm": { "type": "string" },
+            "driver_version": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "cuda": {
+          "type": "object",
+          "required": ["toolkit_version"],
+          "properties": {
+            "toolkit_version": { "type": "string" },
+            "runtime_version": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "pixi_env": { "type": "string", "description": "Expected to be 'cuda13' for benchmark runs." },
+        "nvbench": {
+          "type": "object",
+          "required": ["source_path"],
+          "properties": {
+            "source_path": { "type": "string" },
+            "version": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "settings": {
+      "type": "object",
+      "required": ["nvbench"],
+      "properties": {
+        "nvbench": {
+          "type": "object",
+          "required": ["stopping_criterion", "min_time_s", "max_noise_pct", "min_samples"],
+          "properties": {
+            "stopping_criterion": { "type": "string" },
+            "min_time_s": { "type": "number" },
+            "max_noise_pct": { "type": "number" },
+            "min_samples": { "type": "integer" },
+            "timeout_s": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "cublaslt": {
+          "type": "object",
+          "required": ["algo_selection_mode"],
+          "properties": {
+            "algo_selection_mode": { "type": "string", "enum": ["heuristic", "pinned"] },
+            "algo_map_path": { "type": "string" },
+            "algo_map_sha256": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "result_record": {
+      "type": "object",
+      "required": ["suite", "case", "shape", "dtype", "timing", "flop_count", "verification"],
+      "properties": {
+        "suite": { "type": "string", "enum": ["square", "nonsquare_atb", "nonsquare_abt"] },
+        "case": {
+          "type": "string",
+          "enum": ["AB", "ATB_view", "ABT_view", "ATB_copyA", "ABT_copyB"]
+        },
+        "shape": {
+          "type": "object",
+          "required": ["m", "n", "k"],
+          "properties": {
+            "m": { "type": "integer", "minimum": 1 },
+            "n": { "type": "integer", "minimum": 1 },
+            "k": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "dtype": {
+          "type": "object",
+          "required": ["a", "b", "c", "compute", "math_mode"],
+          "properties": {
+            "a": { "type": "string" },
+            "b": { "type": "string" },
+            "c": { "type": "string" },
+            "compute": { "type": "string" },
+            "math_mode": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "timing": {
+          "type": "object",
+          "required": ["gpu_time_ms", "measurement"],
+          "properties": {
+            "measurement": { "type": "string", "enum": ["cold", "batch"] },
+            "gpu_time_ms": { "type": "number", "minimum": 0 },
+            "cpu_time_ms": { "type": ["number", "null"], "minimum": 0 },
+            "samples": { "type": ["integer", "null"], "minimum": 1 },
+            "nvbench_raw": { "type": ["object", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "flop_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Must be 2*m*n*k for all records (FR-008 / FR-008b)."
+        },
+        "cublaslt": {
+          "type": "object",
+          "required": ["algo"],
+          "properties": {
+            "algo": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "type": "integer" },
+                "tile_id": { "type": "integer" },
+                "splitk_num": { "type": "integer" },
+                "reduction_scheme": { "type": "integer" },
+                "cta_swizzling": { "type": "integer" },
+                "custom_option": { "type": "integer" },
+                "stages_id": { "type": "integer" },
+                "inner_shape_id": { "type": "integer" },
+                "cluster_shape_id": { "type": "integer" },
+                "required_workspace_bytes": { "type": "integer", "minimum": 0 },
+                "waves_count": { "type": "integer" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "ratios": {
+          "type": "object",
+          "properties": {
+            "ratio_to_ab": { "type": "number", "minimum": 0 },
+            "ratio_copy_over_view": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": true
+        },
+        "verification": {
+          "type": "object",
+          "required": ["status", "mode"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pass", "fail"] },
+            "mode": { "type": "string", "enum": ["sampled", "full"] },
+            "max_abs_error": { "type": "number", "minimum": 0 },
+            "max_rel_error": { "type": "number", "minimum": 0 },
+            "num_samples": { "type": "integer", "minimum": 1 },
+            "details": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "profiling": {
+          "type": ["object", "null"],
+          "required": ["ncu_rep", "command"],
+          "properties": {
+            "ncu_rep": { "type": "string" },
+            "ncu_summary": { "type": "string" },
+            "command": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
