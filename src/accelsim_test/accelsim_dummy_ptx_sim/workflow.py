@@ -69,10 +69,13 @@ def parse_pass_fail(log_path: Path) -> tuple[RunStatus, str | None]:
     except Exception:
         return "fail", "missing_log"
 
+    has_banner = any("Accel-Sim [build" in ln for ln in lines)
     has_pass = any(ln == "PASS" for ln in lines)
     has_fail = any(ln == "FAIL" for ln in lines)
 
     if has_pass and not has_fail:
+        if not has_banner:
+            return "fail", "missing_simulator_banner"
         return "pass", None
     if has_fail:
         return "fail", "correctness_mismatch"
