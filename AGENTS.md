@@ -75,6 +75,8 @@ PRs should include:
 ## Active Technologies
 - Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling) (002-gemm-transpose-bench)
 - Files (structured JSON/CSV export + Markdown report + per-case `*.ncu-rep` artifacts) (002-gemm-transpose-bench)
+- Python 3.12 (Pixi) + CUDA C++ (nvcc; PTX-mode simulation target) + Pixi tasks (workflow), Accel-Sim submodule (`extern/tracked/accel-sim-framework`), bash runner glue, CUDA compiler (`nvcc`) via Pixi when available (fallback to system `nvcc`) (003-accelsim-dummy-ptx-sim)
+- Files under `tmp/<run_id>/` (binary, PTX, `gpgpusim.config` copy, logs, metadata) (003-accelsim-dummy-ptx-sim)
 
 ## Recent Changes
 - 002-gemm-transpose-bench: Added Python 3.12 (Pixi) + CUDA C++17 (NVCC via Pixi `cuda13`) + Pixi tasks (workflow), Ruff + Mypy (Python QA), `attrs`/Hydra (Python config), Conan 2 + CMake/Ninja (C++ build), cuBLASLt (GEMM), NVBench (timing; `extern/orphan/nvbench`), Nsight Compute `ncu` (profiling)
