@@ -2,7 +2,7 @@
 
 ## HEADER
 - **Purpose**: Create a minimal CUDA kernel (e.g., matrix multiplication), compile it with system `nvcc`, and run it in Accel-Sim PTX mode as a sanity-check workflow.
-- **Status**: Draft
+- **Status**: Draft (ready for implementation)
 - **Date**: 2026-01-29
 - **Dependencies**:
   - `pyproject.toml` (Pixi env `accelsim` for building the simulator)
@@ -12,6 +12,16 @@
 - **Target**: Developers (including future maintainers) and AI assistants
 
 ---
+
+## 0. User Stories (what this plan must enable)
+
+These are the user-facing slices of value that this plan targets (mirrors `specs/003-accelsim-dummy-ptx-sim/spec.md`):
+
+1. **P1**: Run a minimal CUDA program under Accel-Sim PTX simulation end-to-end, producing a self-contained run artifact directory.
+2. **P2**: Preserve and inspect the exact PTX used by the simulator for the run.
+3. **P3**: Validate numerical correctness at small sizes with a deterministic pass/fail signal.
+4. **P4**: Switch between supported simulator configurations and record which config was used for each run.
+5. **P5**: Fail fast with actionable errors when prerequisites are missing (compiler, simulator build, configs).
 
 ## 1. Purpose and Outcome
 
@@ -34,7 +44,10 @@ Key outputs/artifacts (kept under `tmp/<subdir>/`):
 
 1. Build the simulator once via Pixi: `pixi run -e accelsim accelsim-build`.
 2. Create `tmp/accelsim-matmul/` with `src/matmul.cu`, compile/run scripts, and output folders.
-3. Compile the `.cu` using system `nvcc` with embedded PTX for SM70 (`-gencode arch=compute_70,code=compute_70`), and also emit a standalone `matmul.ptx` for debugging.
+3. Compile the `.cu` using an available CUDA compiler:
+   - preferred: `pixi run -e cuda13 nvcc ...` (reproducible toolchain in repo)
+   - fallback: system `nvcc`
+   The build must embed PTX for SM70 (`-gencode arch=compute_70,code=compute_70`) and also emit a standalone `matmul.ptx` for debugging.
 4. Run the resulting executable under simulation by sourcing Accel-Sim’s environment (`extern/tracked/accel-sim-framework/gpu-simulator/setup_environment.sh`) and running the binary from a working directory containing `gpgpusim.config` (copied from `SM7_QV100`).
 5. Validate the run by checking the logs for the simulator banner and completion, and optionally validate the numeric result (small matrix sizes).
 
@@ -74,7 +87,7 @@ GS-->>Sc: logs + outputs<br/>(run/)
 - [ ] **Pick subdir name** use `tmp/accelsim-matmul/` (or another short, stable name) and create `src/`, `bin/`, `ptx/`, `run/`.
 - [ ] **Write dummy kernel** implement naive matmul with small dimensions (e.g., 16–64) and a deterministic output check (checksum or max error vs CPU reference).
 - [ ] **Write compile script** `build.sh` should:
-  - [ ] Validate `nvcc` is available (`command -v nvcc`)
+  - [ ] Validate a CUDA compiler is available (prefer `pixi run -e cuda13 nvcc`, fallback to `command -v nvcc`)
   - [ ] Emit PTX: `nvcc ... -ptx src/matmul.cu -o ptx/matmul.ptx`
   - [ ] Build executable with embedded PTX: `nvcc ... -gencode arch=compute_70,code=compute_70 ... -o bin/matmul`
   - [ ] Confirm dynamic cudart link: `ldd bin/matmul | rg libcudart`
@@ -85,4 +98,3 @@ GS-->>Sc: logs + outputs<br/>(run/)
   - [ ] Grep for banner lines (`Accel-Sim [build`, `GPGPU-Sim Simulator Version`) and exit non-zero if missing.
 - [ ] **Capture outputs** keep all logs/artifacts under `tmp/accelsim-matmul/run/` (no outputs outside `tmp/`).
 - [ ] **Document the verified recipe** update `context/summaries/accel-sim-kb/qa-accel-sim-kb.md` with the exact compile+run commands used and any gotchas discovered.
-
