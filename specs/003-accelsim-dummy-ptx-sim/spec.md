@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "implement context/plans/plan-accelsim-dummy-cu-ptx-simulation.md , create 5 user stories"
 
+## Clarifications
+
+### Session 2026-02-03
+
+- Q: Which simulator configuration presets must be supported “out of the box”? → A: Ampere/A100-like PTX config only.
+- Q: Is trace-driven (SASS) simulation in scope for this feature? → A: No — PTX-mode only.
+- Q: Which CUDA compiler source must the workflow support? → A: Prefer Pixi `nvcc`, fall back to system `nvcc`.
+- Q: What correctness signal should the minimal program produce? → A: Compare against a CPU reference and print `PASS`/`FAIL`.
+- Q: Where should run artifacts be stored? → A: Under `tmp/<run_id>/` only.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -67,15 +77,15 @@ As a developer, I want the minimal program to self-check correctness (at small s
 
 ### User Story 4 - Switch between supported simulator configurations (Priority: P4)
 
-As a developer, I want to run the same minimal program against different supported simulator configurations so I can sanity-check configuration wiring and avoid “wrong config” mistakes.
+As a developer, I want to run the same minimal program against the supported simulator configuration preset for Ampere/A100-class GPUs so I can avoid “wrong config” mistakes.
 
 **Why this priority**: Configuration mismatch is a common source of confusion; a supported switch reduces time-to-diagnosis.
 
-**Independent Test**: Run the workflow twice with two supported configurations and verify both produce distinct logs and record which config was used.
+**Independent Test**: Run the workflow with the supported preset and verify the run records which configuration preset was used.
 
 **Acceptance Scenarios**:
 
-1. **Given** two supported simulator configurations, **When** the developer selects each configuration and runs the workflow, **Then** both runs complete and record which configuration was used.
+1. **Given** the supported simulator configuration preset is selected, **When** the developer runs the workflow, **Then** the run completes and records which configuration preset was used.
 
 ---
 
@@ -118,8 +128,12 @@ As a developer, I want the workflow to detect missing prerequisites and fail wit
 - **FR-001**: The repository MUST provide a minimal CUDA program suitable for PTX-mode simulation and a documented workflow to run it.
 - **FR-002**: The workflow MUST produce a self-contained artifact directory per run containing: the program used, generated PTX, simulator configuration, and simulator logs.
 - **FR-003**: The minimal program MUST produce a deterministic correctness outcome for small input sizes (pass/fail) and record it in the run artifacts.
-- **FR-004**: The workflow MUST support running against at least one known-good simulator configuration and MUST record which configuration was used.
+- **FR-004**: The workflow MUST support running against a known-good simulator configuration preset for Ampere/A100-class GPUs and MUST record which configuration preset was used.
 - **FR-005**: The workflow MUST detect missing prerequisites and MUST provide actionable error messages that identify the missing component(s).
+- **FR-006**: The workflow MUST be limited to PTX-mode simulation; trace-driven (SASS) simulation is explicitly out of scope for this feature.
+- **FR-007**: The workflow MUST support compiling the minimal program using a repo-provided compiler when available, and MUST fall back to a system-installed compiler when the repo-provided compiler is not available.
+- **FR-008**: The minimal program MUST validate results against a reference computation and MUST print an unambiguous `PASS`/`FAIL` outcome.
+- **FR-009**: The workflow MUST store run artifacts under `tmp/<run_id>/` and MUST not require writing outputs outside `tmp/`.
 
 ### Key Entities *(include if feature involves data)*
 

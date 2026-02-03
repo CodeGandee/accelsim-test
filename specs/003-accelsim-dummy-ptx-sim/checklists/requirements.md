@@ -31,4 +31,5 @@
 
 ## Notes
 
+- Clarifications recorded in `specs/003-accelsim-dummy-ptx-sim/spec.md` under `## Clarifications` (Session 2026-02-03).
 - Assumptions/dependencies are captured as prerequisites in user stories and edge cases (no tool-specific requirements are mandated in the spec).
