@@ -11,6 +11,18 @@
 - **[Story]**: User story mapping: US1..US5 (from `spec.md`)
 - Include exact file paths in descriptions
 
+## Implementation Guides
+
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph1-setup.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph2-foundational.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph3-us1-end-to-end.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph4-us2-ptx-provenance.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph5-us3-correctness.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph6-us4-config-preset.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph7-us5-prereqs-failfast.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-guide-ph8-polish.md`
+- `context/tasks/working/003-accelsim-dummy-ptx-sim/impl-integrate-phases.md`
+
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
