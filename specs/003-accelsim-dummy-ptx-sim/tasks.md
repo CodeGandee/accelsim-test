@@ -29,9 +29,9 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 [P] Create Python package skeleton in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/` (`__init__.py`, `__main__.py`, `model.py`, `paths.py`, `artifacts.py`, `toolchain.py`, `prereqs.py`, `workflow.py`)
-- [ ] T002 [P] Create minimal CUDA program source directory and stub in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
-- [ ] T003 Add Pixi task wrapper `accelsim-dummy-ptx-sim` in `/data1/huangzhe/code/accelsim-test/pyproject.toml` that runs `python -m accelsim_test.accelsim_dummy_ptx_sim run` in the `accelsim` environment
+- [X] T001 [P] Create Python package skeleton in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/` (`__init__.py`, `__main__.py`, `model.py`, `paths.py`, `artifacts.py`, `toolchain.py`, `prereqs.py`, `workflow.py`)
+- [X] T002 [P] Create minimal CUDA program source directory and stub in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
+- [X] T003 Add Pixi task wrapper `accelsim-dummy-ptx-sim` in `/data1/huangzhe/code/accelsim-test/pyproject.toml` that runs `python -m accelsim_test.accelsim_dummy_ptx_sim run` in the `accelsim` environment
 
 ---
 
@@ -41,11 +41,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Implement core entities from `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/data-model.md` in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/model.py` (`SimulationRun`, `RunArtifacts`, `PrerequisiteCheck`) with `to_dict()` helpers for `metadata.json`
-- [ ] T005 [P] Implement repo root detection + path builders in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/paths.py` (run dir under `/data1/huangzhe/code/accelsim-test/tmp/accelsim_dummy_ptx_sim/<run_id>/`, filesystem-safe `run_id` sanitizer, SM80_A100 config source path constant from `research.md` Decision 2)
-- [ ] T006 [P] Implement artifact directory layout + metadata writer in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/artifacts.py` (create `bin/`, `ptx/`, `run/`, write `/data1/huangzhe/code/accelsim-test/tmp/accelsim_dummy_ptx_sim/<run_id>/metadata.json`)
-- [ ] T007 [P] Implement CLI parsing for `run` command in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/__main__.py` with options from `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/contracts/cli.md` (`--run-id`, `--compiler`, `--config-preset`)
-- [ ] T008 Define the typed workflow API and wire CLI → workflow in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` (single `run(...) -> int` entrypoint that always writes `metadata.json`)
+- [X] T004 [P] Implement core entities from `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/data-model.md` in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/model.py` (`SimulationRun`, `RunArtifacts`, `PrerequisiteCheck`) with `to_dict()` helpers for `metadata.json`
+- [X] T005 [P] Implement repo root detection + path builders in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/paths.py` (run dir under `/data1/huangzhe/code/accelsim-test/tmp/accelsim_dummy_ptx_sim/<run_id>/`, filesystem-safe `run_id` sanitizer, SM80_A100 config source path constant from `research.md` Decision 2)
+- [X] T006 [P] Implement artifact directory layout + metadata writer in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/artifacts.py` (create `bin/`, `ptx/`, `run/`, write `/data1/huangzhe/code/accelsim-test/tmp/accelsim_dummy_ptx_sim/<run_id>/metadata.json`)
+- [X] T007 [P] Implement CLI parsing for `run` command in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/__main__.py` with options from `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/contracts/cli.md` (`--run-id`, `--compiler`, `--config-preset`)
+- [X] T008 Define the typed workflow API and wire CLI → workflow in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` (single `run(...) -> int` entrypoint that always writes `metadata.json`)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -59,11 +59,11 @@
 
 ### Implementation (US1)
 
-- [ ] T009 [P] [US1] Implement a minimal CUDA program that runs quickly and prints a completion indicator (e.g., `DONE`) in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
-- [ ] T010 [P] [US1] Implement `nvcc` selection + compile command builder in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/toolchain.py` (`--compiler auto|pixi|system`, emit executable + standalone PTX, target `compute_80` per `research.md` Decision 3)
-- [ ] T011 [US1] Implement end-to-end workflow in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`: prerequisite stubs (no fail-fast yet), compile into `bin/matmul` + `ptx/matmul.ptx`, copy SM80_A100 `gpgpusim.config` into `run/`, run via `bash -lc 'export GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN=; source extern/tracked/accel-sim-framework/gpu-simulator/setup_environment.sh; cd .../run; ../bin/matmul'` and capture stdout/stderr into `run/matmul.sim.log`
-- [ ] T012 [US1] Validate and update `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md` so its commands and expected artifact paths match the implemented CLI/workflow
-- [ ] T013 [P] [US1] Add unit tests for run-id sanitization and artifact layout in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_paths.py`
+- [X] T009 [P] [US1] Implement a minimal CUDA program that runs quickly and prints a completion indicator (e.g., `DONE`) in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
+- [X] T010 [P] [US1] Implement `nvcc` selection + compile command builder in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/toolchain.py` (`--compiler auto|pixi|system`, emit executable + standalone PTX, target `compute_80` per `research.md` Decision 3)
+- [X] T011 [US1] Implement end-to-end workflow in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`: prerequisite stubs (no fail-fast yet), compile into `bin/matmul` + `ptx/matmul.ptx`, copy SM80_A100 `gpgpusim.config` into `run/`, run via `bash -lc 'export GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN=; source extern/tracked/accel-sim-framework/gpu-simulator/setup_environment.sh; cd .../run; ../bin/matmul'` and capture stdout/stderr into `run/matmul.sim.log`
+- [X] T012 [US1] Validate and update `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md` so its commands and expected artifact paths match the implemented CLI/workflow
+- [X] T013 [P] [US1] Add unit tests for run-id sanitization and artifact layout in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_paths.py`
 
 **Checkpoint**: User Story 1 runs end-to-end and produces the required artifact directory
 
@@ -77,9 +77,9 @@
 
 ### Implementation (US2)
 
-- [ ] T014 [P] [US2] Add run-dir collision prevention (error if artifacts dir exists) and PTX/source hashing utilities in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/artifacts.py` (record `ptx_sha256` in `metadata.json`)
-- [ ] T015 [US2] Copy the compiled CUDA source into run artifacts (e.g., `src/matmul.cu`) and record its path/hash in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` to make PTX provenance auditable per run
-- [ ] T016 [P] [US2] Add unit tests for hashing + collision behavior in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_artifacts.py`
+- [X] T014 [P] [US2] Add run-dir collision prevention (error if artifacts dir exists) and PTX/source hashing utilities in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/artifacts.py` (record `ptx_sha256` in `metadata.json`)
+- [X] T015 [US2] Copy the compiled CUDA source into run artifacts (e.g., `src/matmul.cu`) and record its path/hash in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` to make PTX provenance auditable per run
+- [X] T016 [P] [US2] Add unit tests for hashing + collision behavior in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_artifacts.py`
 
 ---
 
@@ -91,9 +91,9 @@
 
 ### Implementation (US3)
 
-- [ ] T017 [P] [US3] Implement CPU reference + deterministic inputs + `PASS`/`FAIL` printing (non-zero exit on `FAIL`) in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
-- [ ] T018 [US3] Parse `PASS`/`FAIL` from `run/matmul.sim.log`, set `SimulationRun.status` + `failure_reason`, and enforce exit code `0` only on `PASS` in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`
-- [ ] T019 [P] [US3] Add unit tests for log parsing and status mapping in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_status.py`
+- [X] T017 [P] [US3] Implement CPU reference + deterministic inputs + `PASS`/`FAIL` printing (non-zero exit on `FAIL`) in `/data1/huangzhe/code/accelsim-test/cpp/accelsim_dummy_ptx_sim/matmul.cu`
+- [X] T018 [US3] Parse `PASS`/`FAIL` from `run/matmul.sim.log`, set `SimulationRun.status` + `failure_reason`, and enforce exit code `0` only on `PASS` in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`
+- [X] T019 [P] [US3] Add unit tests for log parsing and status mapping in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_status.py`
 
 ---
 
@@ -105,10 +105,10 @@
 
 ### Implementation (US4)
 
-- [ ] T020 [P] [US4] Implement config preset mapping/validation (support `sm80_a100` only for this feature) in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/paths.py`
-- [ ] T021 [P] [US4] Wire `--config-preset` option through CLI parsing in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/__main__.py`
-- [ ] T022 [US4] Update config-copy + metadata recording to use the selected preset in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`
-- [ ] T023 [P] [US4] Add unit tests for preset mapping/validation in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_presets.py`
+- [X] T020 [P] [US4] Implement config preset mapping/validation (support `sm80_a100` only for this feature) in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/paths.py`
+- [X] T021 [P] [US4] Wire `--config-preset` option through CLI parsing in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/__main__.py`
+- [X] T022 [US4] Update config-copy + metadata recording to use the selected preset in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py`
+- [X] T023 [P] [US4] Add unit tests for preset mapping/validation in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_presets.py`
 
 ---
 
@@ -120,10 +120,10 @@
 
 ### Implementation (US5)
 
-- [ ] T024 [P] [US5] Implement prerequisite checks in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/prereqs.py` (`submodule_initialized`, `simulator_built`, `nvcc_available`, `config_preset_exists`, `tmp_writable`) returning `list[PrerequisiteCheck]` with actionable `details` strings (commands to run)
-- [ ] T025 [US5] Integrate prerequisite checks into `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` so failures short-circuit before compile/run, print a concise checklist of missing items, and record `failure_reason` in `metadata.json`
-- [ ] T026 [P] [US5] Add unit tests for prerequisite checks in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_prereqs.py`
-- [ ] T027 [US5] Add a troubleshooting section (common failures + exact fix commands) to `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md`
+- [X] T024 [P] [US5] Implement prerequisite checks in `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/prereqs.py` (`submodule_initialized`, `simulator_built`, `nvcc_available`, `config_preset_exists`, `tmp_writable`) returning `list[PrerequisiteCheck]` with actionable `details` strings (commands to run)
+- [X] T025 [US5] Integrate prerequisite checks into `/data1/huangzhe/code/accelsim-test/src/accelsim_test/accelsim_dummy_ptx_sim/workflow.py` so failures short-circuit before compile/run, print a concise checklist of missing items, and record `failure_reason` in `metadata.json`
+- [X] T026 [P] [US5] Add unit tests for prerequisite checks in `/data1/huangzhe/code/accelsim-test/tests/unit/test_accelsim_dummy_ptx_sim_prereqs.py`
+- [X] T027 [US5] Add a troubleshooting section (common failures + exact fix commands) to `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md`
 
 ---
 
@@ -131,9 +131,9 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T028 [P] Add a manual smoke-run helper (skips if prerequisites are missing) in `/data1/huangzhe/code/accelsim-test/tests/manual/run_accelsim_dummy_ptx_sim_smoke.py`
-- [ ] T029 [P] Update repository docs to link the new quickstart in `/data1/huangzhe/code/accelsim-test/README.md`
-- [ ] T030 Validate the full workflow against `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/contracts/cli.md` and update `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md` if any paths/flags differ
+- [X] T028 [P] Add a manual smoke-run helper (skips if prerequisites are missing) in `/data1/huangzhe/code/accelsim-test/tests/manual/run_accelsim_dummy_ptx_sim_smoke.py`
+- [X] T029 [P] Update repository docs to link the new quickstart in `/data1/huangzhe/code/accelsim-test/README.md`
+- [X] T030 Validate the full workflow against `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/contracts/cli.md` and update `/data1/huangzhe/code/accelsim-test/specs/003-accelsim-dummy-ptx-sim/quickstart.md` if any paths/flags differ
 
 ---
 

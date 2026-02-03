@@ -70,6 +70,16 @@ This repo includes an NVBench-based CUDA GEMM transpose microbenchmark with a Py
 - Run (timing): `pixi run -e cuda13 gemm-transpose -- timing --out-dir tmp/gemm_transpose_out --suite all --dtype all`
 - Generate report: `pixi run -- python -m accelsim_test.gemm_transpose_bench report --out-dir tmp/gemm_transpose_out`
 
+## Accel-Sim Dummy PTX Simulation (PTX Mode)
+
+This repo includes a minimal CUDA matmul sanity-check that compiles to embedded PTX and runs under Accel-Sim PTX-mode simulation.
+
+- Quickstart: `specs/003-accelsim-dummy-ptx-sim/quickstart.md`
+- CLI contract: `specs/003-accelsim-dummy-ptx-sim/contracts/cli.md`
+- Example run:
+  - `pixi run -e accelsim python -m accelsim_test.accelsim_dummy_ptx_sim run --run-id 2026-02-03T00-00-00Z`
+  - (wrapper task) `pixi run -e accelsim accelsim-dummy-ptx-sim -- --run-id 2026-02-03T00-00-00Z`
+
 ## C++ Profiling Scratch (`cpp/`)
 
 The `cpp/` directory is a small Conan 2 + CMake project used for experimenting with profiling-related C++ code and dependency integration (e.g., CUTLASS via Conan).

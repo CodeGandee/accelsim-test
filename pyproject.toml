@@ -24,6 +24,7 @@ accelsim-build = "bash scripts/accelsim/build.sh"
 accelsim-smoke = "bash scripts/accelsim/smoke.sh"
 # Run Accel-Sim upstream short functional tests (downloads traces + runs trace-driven sims; can take a while).
 accelsim-short-tests = "bash scripts/accelsim/short-tests.sh"
+accelsim-dummy-ptx-sim = "python -m accelsim_test.accelsim_dummy_ptx_sim run"
 pytest = "pytest -q"
 
 # GEMM transpose benchmark (NVBench + cuBLASLt)
