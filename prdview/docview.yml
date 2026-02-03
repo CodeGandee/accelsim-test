@@ -1,0 +1,44 @@
+# DocView manifest (v1)
+#
+# This file captures your “what should be staged” intent.
+# - scan.include_globs: glob patterns for Markdown discovery (defaults)
+# - scan.force_globs: glob patterns scanned even if gitignored (explicit user intent)
+# - scan.exclude_globs: glob patterns excluded from Markdown discovery
+#
+# Notes:
+# - By default, discovery respects .gitignore (gitignored dirs/files are not scanned for Markdown).
+# - Referenced image assets from selected Markdown are still staged even if gitignored.
+
+version: 1
+
+staging:
+  dir: '_staged'
+
+mkdocs:
+  site_name: 'PRD View'
+  dev_addr: null
+
+scan:
+  respect_gitignore: true
+  include_hidden: false
+  auto_exclude_generated: true
+  include_globs:
+    - *.md
+    - **/*.md
+  exclude_globs: []
+  force_globs:
+    - tmp/**/*.md
+
+assets:
+  include_images: true
+  image_extensions:
+    - .avif
+    - .bmp
+    - .gif
+    - .jpeg
+    - .jpg
+    - .png
+    - .svg
+    - .tif
+    - .tiff
+    - .webp

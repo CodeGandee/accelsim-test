@@ -1,0 +1,15 @@
+# Generated staged docs tree (symlinks/copies)
+_staged/
+
+# MkDocs build output
+site/
+
+# Generated MkDocs config (created by refresh-docs-tree.sh)
+mkdocs.yml
+
+# Cached repo root (created at scaffold time; override via env var); usually machine-specific
+repo-root.txt
+
+# Background serve helpers/logs (local only)
+prdview-serve.pid
+prdview-serve.log
