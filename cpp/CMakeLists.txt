@@ -11,7 +11,13 @@ endif()
 
 project(accelsim_profiling CXX CUDA)
 
-set(CMAKE_CUDA_ARCHITECTURES 80)
+# Default to building for the locally-available GPU to keep the benchmark
+# runnable across machines (e.g., A100 vs B200). Override explicitly via:
+#   cmake -DCMAKE_CUDA_ARCHITECTURES=80 ...
+# if you need reproducible arch-specific binaries.
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native)
+endif()
 
 find_package(NvidiaCutlass CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
@@ -47,6 +53,15 @@ add_executable(gemm_transpose_bench
 )
 target_link_libraries(gemm_transpose_bench PRIVATE
     nvbench::main
+    CUDA::cublasLt
+    CUDA::cudart
+    nlohmann_json::nlohmann_json
+)
+
+add_executable(cublaslt_algo_caps_dump
+    src/cublaslt_algo_caps_dump.cpp
+)
+target_link_libraries(cublaslt_algo_caps_dump PRIVATE
     CUDA::cublasLt
     CUDA::cudart
     nlohmann_json::nlohmann_json

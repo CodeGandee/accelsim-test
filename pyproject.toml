@@ -27,7 +27,7 @@ accelsim-short-tests = "bash scripts/accelsim/short-tests.sh"
 pytest = "pytest -q"
 
 # GEMM transpose benchmark (NVBench + cuBLASLt)
-gemm-transpose-build = "bash -lc 'export CUDAHOSTCXX=/usr/bin/g++; cd cpp && conan profile detect --force && conan install . -b missing && cmake --preset conan-release && cmake --build --preset conan-release -j --target gemm_transpose_bench'"
+gemm-transpose-build = "bash -lc 'export CUDAHOSTCXX=/usr/bin/g++; cd cpp && conan profile detect --force && conan install . -b missing && cmake --preset conan-release -DCMAKE_CUDA_ARCHITECTURES=native && cmake --build --preset conan-release -j --target gemm_transpose_bench'"
 gemm-transpose = "python -m accelsim_test.gemm_transpose_bench"
 
 # CUDA build env sanity check (uses the `cuda13` environment)
@@ -80,10 +80,23 @@ cuda-nvcc = { version = "13.0.*", channel = "nvidia" }
 cudnn = { channel = "nvidia" }
 cuda-nvtx = ">=13.0.85,<14"
 
+[tool.pixi.feature.cuda128.dependencies]
+cmake = "*"
+ninja = "*"
+cxx-compiler = "*"
+make = "*"
+pkg-config = "*"
+conan = "*"
+cuda-toolkit = { version = "12.8.*", channel = "nvidia" }
+cuda-nvcc = { version = "12.8.*", channel = "nvidia" }
+cudnn = { channel = "nvidia" }
+cuda-nvtx = ">=12.8,<13"
+
 [tool.pixi.environments]
 default = { features = [], solve-group = "default" }
 accelsim = { features = ["accelsim"], solve-group = "default" }
 cuda13 = { features = ["cuda13"], solve-group = "cuda13" }
+cuda128 = { features = ["cuda128"], solve-group = "cuda128" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
