@@ -67,6 +67,15 @@ target_link_libraries(cublaslt_algo_caps_dump PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+add_executable(repro_algo23_int8_n1000
+    src/repro_algo23_int8_n1000.cu
+    src/cublaslt_gemm.cu
+)
+target_link_libraries(repro_algo23_int8_n1000 PRIVATE
+    CUDA::cublasLt
+    CUDA::cudart
+)
+
 install(TARGETS accelsim_profiling DESTINATION "."
         RUNTIME DESTINATION bin
         ARCHIVE DESTINATION lib

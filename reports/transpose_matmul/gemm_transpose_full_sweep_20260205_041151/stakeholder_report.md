@@ -78,6 +78,37 @@ At `N=1000` with int8, `ABT_view` picks a different cuBLASLt algo than the other
 
 Interpretation caveat: for square matrices, `A@B.T` is **not** a drop-in replacement for `A@B` unless `B` is symmetric. This row primarily demonstrates that transpose flags/layout can unlock different kernels at specific sizes.
 
+### Standalone Repro (N=1000, int8; algo 23)
+
+To validate the "ABT_view + algo 23 is much faster" phenomenon outside the sweep harness, we added a minimal standalone repro:
+
+- Program: `cpp/src/repro_algo23_int8_n1000.cu` (CMake target: `repro_algo23_int8_n1000`)
+- Command:
+
+```bash
+pixi run -e cuda128 bash -lc ./cpp/build/Release/repro_algo23_int8_n1000
+```
+
+Timing method: CUDA events around a tight loop of `plan.Run(...)` calls (200 warmup + 2000 iters), reporting average GPU ms per GEMM.
+
+Results (this machine; B200; CUDA 12.8):
+
+| variant | avg_gpu_ms | algo_id | outcome |
+|---|---:|---:|---|
+| `AB` (heuristic) | 0.0348 | 64 | baseline |
+| `ATB_view` (heuristic) | 0.0391 | 64 | baseline |
+| `ABT_view` (heuristic) | **0.0123** | **23** | **2.83x faster vs AB** |
+| `AB` (forced algo 23) | NA | 23 | rejected by `cublasLtMatmulAlgoCheck` (status 15) |
+| `ATB_view` (forced algo 23) | NA | 23 | rejected by `cublasLtMatmulAlgoCheck` (status 15) |
+| `ABT_view` (forced algo 23) | 0.0123 | 23 | matches heuristic fast path |
+| `ABT_view` (forced algo 64) | 0.0246 | 64 | slower than algo 23 |
+
+Interpretation:
+
+- The speedup is reproducible with a standalone program: `ABT_view` heuristically selects **algo 23** and is much faster than `AB`/`ATB_view` (algo 64).
+- For this `(M,N,K)=(1000,1000,1000)` int8 problem, cuBLASLt rejects forcing algo 23 for `AB` and `ATB_view` via `cublasLtMatmulAlgoCheck` (status 15), so those rows are **NA**.
+- Absolute timings differ from the NVBench sweep (different harness and iteration strategy), but the key effect (algo 23 fast path for `ABT_view`) remains.
+
 ### Non-square Suite (FLOP-matched; view vs copy)
 
 Non-square timing is split into two suites with **different storage shapes** (so the transpose-view expressions are well-defined for non-square matrices):
