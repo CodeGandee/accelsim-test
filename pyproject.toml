@@ -74,7 +74,6 @@ ninja = "*"
 cxx-compiler = "*"
 make = "*"
 pkg-config = "*"
-conan = "*"
 cuda-toolkit = { version = "13.0.*", channel = "nvidia" }
 cuda-nvcc = { version = "13.0.*", channel = "nvidia" }
 cudnn = { channel = "nvidia" }
@@ -86,7 +85,6 @@ ninja = "*"
 cxx-compiler = "*"
 make = "*"
 pkg-config = "*"
-conan = "*"
 cuda-toolkit = { version = "12.8.*", channel = "nvidia" }
 cuda-nvcc = { version = "12.8.*", channel = "nvidia" }
 cudnn = { channel = "nvidia" }

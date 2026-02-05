@@ -25,6 +25,24 @@ Times below are from `report.md` (ms; `algo_id` is per-case cuBLASLt heuristic s
 
 ### Square Snapshots (B200)
 
+#### Dtype Signature Legend
+
+Throughout this report, dtype labels use the shorthand:
+
+`a,b->c (compute,math_mode)`
+
+Definition:
+
+- `a`, `b`: storage dtype of input matrices A and B.
+- `c`: storage dtype of output matrix C (and D, when cuBLASLt distinguishes C vs D; here they are the same).
+- `compute`: the compute mode used by cuBLASLt for the matmul (what math/accumulation path is used), as recorded by our exporter.
+  - Example: `fp32` means FP32 compute/accumulation (common for fp16/bf16 outputs).
+  - Example: `int32` means integer compute/accumulation (int8 inputs accumulating into int32 output).
+  - Example: `tf32` means TF32 tensor-core math mode is enabled (TF32 path; FP32 accumulation).
+- `math_mode`: an explicit "math mode" axis used by this benchmark (`default` vs `tf32` for the fp32 path).
+
+This corresponds to `record.dtype.{a,b,c,compute,math_mode}` in `results.json`.
+
 #### N=4096
 
 | dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) |

@@ -30,6 +30,7 @@ class accelsim_profilingRecipe(ConanFile):
         self.requires("sqlite_orm/1.8.2")
         self.requires("nlohmann_json/3.11.3")
         self.requires("rapidcsv/8.84")
+        self.requires("yaml-cpp/0.8.0")
 
     def build_requirements(self):
         self.test_requires("catch2/3.7.1")

@@ -25,6 +25,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 find_package(SqliteOrm CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(rapidcsv CONFIG REQUIRED)
+find_package(yaml-cpp CONFIG REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
@@ -45,6 +46,7 @@ target_link_libraries(accelsim_profiling PRIVATE
     sqlite_orm::sqlite_orm
     nlohmann_json::nlohmann_json
     rapidcsv::rapidcsv
+    yaml-cpp::yaml-cpp
 )
 
 add_executable(gemm_transpose_bench
@@ -56,6 +58,7 @@ target_link_libraries(gemm_transpose_bench PRIVATE
     CUDA::cublasLt
     CUDA::cudart
     nlohmann_json::nlohmann_json
+    yaml-cpp::yaml-cpp
 )
 
 add_executable(cublaslt_algo_caps_dump
