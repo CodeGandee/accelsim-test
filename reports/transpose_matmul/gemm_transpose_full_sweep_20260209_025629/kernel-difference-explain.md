@@ -118,6 +118,19 @@ This matters on B200 because **both kernels are “underfilled”** (grid smalle
 
 ## What do the `ncu` numbers say?
 
+### Interpreting the Nsight Compute (“Speed Of Light”) metrics used here
+
+The table below comes from Nsight Compute’s `--set basic` capture and mostly reflects the **GPU Speed Of Light Throughput** summary rows. These are best read as “how close did this kernel get to the device’s peak for that subsystem” during the profiled launch (higher is generally better, but context matters).
+
+- **Duration**: The elapsed time of the profiled kernel launch (for the selected kernel instance).
+- **Compute (SM) Throughput**: A summary “compute closeness-to-peak” metric for the SM compute pipelines (including Tensor Core math where applicable). Low values usually mean the kernel is not compute-saturated (often due to underfill, memory stalls, or loop/control overheads).
+- **Memory Throughput**: A summary “memory closeness-to-peak” metric. Treat it as the overall memory-system pressure/throughput indicator; use the **L1/TEX**, **L2**, and **DRAM** rows to see *where* the traffic is showing up.
+- **L1/TEX Cache Throughput / L2 Cache Throughput / DRAM Throughput**: Throughput relative to the peak of that specific level. These help distinguish “mostly L1”, “mostly L2”, or “actually hitting DRAM”.
+- **Grid size**: Number of CTAs (blocks) launched for the kernel.
+- **Block size**: Threads per CTA (threads per block). This affects warp count per CTA, register pressure, and possible occupancy.
+- **Waves per SM**: Roughly, how many “waves” of CTAs exist per SM for this launch. Values **< 1** indicate **underfill** (fewer CTAs than SMs, so not every SM gets a CTA), which makes kernel choice extremely sensitive for small GEMMs.
+- **Dynamic SMEM per block**: Runtime shared-memory allocation per CTA. This can cap how many CTAs can reside on an SM simultaneously, affecting occupancy and latency hiding.
+
 From `profiles/.../ncu/details.csv`:
 
 | metric | `algo_id=23` | `algo_id=64` |
