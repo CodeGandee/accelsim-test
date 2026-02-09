@@ -178,6 +178,43 @@ This is the key “kernel name → CUTLASS intuition” point:
 
 You can treat this as a hypothesis until verified, but it matches the measured symptom: **`algo_id=64` has ~2× lower Memory Throughput (21.7% vs 45.0%) and ~2.2× longer Duration**, consistent with a kernel that is less effective at feeding Tensor Core math on this problem.
 
+## Why can’t `AB` use the same kernel as `ABT_view`? (even though the shape is square)
+
+For `N=1000` square matrices, **dimension compatibility is not the blocker**: both `AB` and `ABT_view` are valid GEMM shapes.
+
+What blocks it in practice is that **the fast kernel is specialized for the `TN` (“B is transposed”) access pattern and its associated layout/stride/alignment constraints**. Two concrete signals:
+
+1) **cuBLASLt rejects “force algo23 into AB” as unsupported**
+
+The standalone repro logs:
+
+- `AB forced algo23` → `NA (reason: cublasLtMatmulAlgoCheck: cublas status 15)`
+- `ABT forced algo23` → works
+
+Status `15` is `CUBLAS_STATUS_NOT_SUPPORTED`, i.e., that algorithm configuration is not valid for the `AB` (NN) descriptors.
+
+2) **`AB` and `ABT_view` drive fundamentally different memory access patterns for B**
+
+With row-major storage:
+
+- `AB` (`trans_b=N`) consumes `B[k,n]`. For a fixed `n`, iterating over `k` touches `B[0,n], B[1,n], ...` which is **strided by `ldb=N`**.
+- `ABT_view` (`trans_b=T`) consumes `Bᵀ[k,n] = B[n,k]`. For a fixed `n`, iterating over `k` touches `B[n,0], B[n,1], ...` which is **unit-stride contiguous**.
+
+That “K-is-contiguous vs K-is-strided” difference is exactly the kind of thing that determines whether a CUTLASS int8 TensorOp kernel can:
+
+- use wide/vectorized loads at the required alignment (e.g., the observed `..._align4`),
+- feed shared-memory tiles efficiently, and
+- keep Tensor Core MMA pipelines busy.
+
+So, even though **square shapes allow either transpose choice dimension-wise**, the **fast `ABT_view` kernel is not generally applicable to the `AB` (NN) problem without changing how B is stored**.
+
+### What would make `AB` able to use a similar fast path?
+
+One of:
+
+- **Pretranspose / pack B** so that the `AB` computation is presented to cuBLASLt as a `TN` problem (this is what the benchmark’s `ABT_copyB`-style materialization is about, although it measures a different math case in the suite naming).
+- Use a cuBLASLt layout/order that matches the kernel family’s expectations for int8 (e.g., an interleaved/packed B layout), so that `AB` can get a kernel with similarly favorable K-contiguity and vectorized loads.
+
 ## How to validate the above with “hard” evidence (SASS / instruction mix)
 
 If you want a definitive answer beyond inference from names/metrics:
