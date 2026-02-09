@@ -1,0 +1,71 @@
+{
+  "case_id": "n1000_int8_abt_view_algo23",
+  "command": [
+    "pixi",
+    "run",
+    "-e",
+    "cuda13",
+    "/home/huangzhe/.pixi/bin/ncu",
+    "--force-overwrite",
+    "--log-file",
+    "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/ncu.log",
+    "--set",
+    "basic",
+    "--export",
+    "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/profile",
+    "--clock-control",
+    "base",
+    "--pipeline-boost-state",
+    "stable",
+    "--profile-from-start",
+    "off",
+    "./cpp/build/Release/repro_algo23_int8_n1000",
+    "--variant",
+    "ABT_view",
+    "--force-algo",
+    "23",
+    "--tile-id",
+    "18",
+    "--stages-id",
+    "21",
+    "--splitk",
+    "1",
+    "--cuda-profiler-gating",
+    "--nvtx",
+    "--iters",
+    "1",
+    "--warmup",
+    "0"
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "2567ac9288bdb1e3131a438dc028e0e8fd44691d",
+    "dirty": true
+  },
+  "host": {
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-94-generic-x86_64-with-glibc2.39"
+  },
+  "out_dir": "tmp/algo23_investigation",
+  "outputs": {
+    "details_csv": "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/details.csv",
+    "ncu_log": "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/ncu.log",
+    "ncu_rep": "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/profile.ncu-rep",
+    "raw_csv": "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/raw.csv",
+    "session_csv": "tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/session.csv"
+  },
+  "pixi_env": "cuda13",
+  "scope": {
+    "kernel_regex": null,
+    "launch_count": 1,
+    "launch_skip": 0,
+    "mode": "profiler",
+    "nvtx_include": null
+  },
+  "timestamp_utc": "2026-02-09T11:12:07.747626+00:00",
+  "tool": "ncu",
+  "tool_versions": {
+    "ncu": "NVIDIA (R) Nsight Compute Command Line Profiler",
+    "pixi": "pixi 0.63.2"
+  }
+}

@@ -1,0 +1,2 @@
+cwd: /data/ssd1/huangzhe/code/accelsim-test
+command: pixi run -e cuda13 /usr/local/bin/nsys profile --force-overwrite=true -t cuda,cublas,nvtx -o tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo64/nsys/capture ./cpp/build/Release/repro_algo23_int8_n1000 --variant ABT_view --force-algo 64 --tile-id 20 --stages-id 8 --splitk 1 --nvtx --iters 1 --warmup 0

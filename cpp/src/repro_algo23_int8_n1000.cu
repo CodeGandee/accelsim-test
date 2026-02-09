@@ -1,6 +1,8 @@
 #include "cublaslt_gemm.h"
 
+#include <cuda_profiler_api.h>
 #include <cuda_runtime.h>
+#include <nvToolsExt.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -18,6 +20,47 @@ namespace
 {
 
 constexpr int kN = 1000;
+
+/**
+ * @brief Simple RAII wrapper for an optional NVTX range.
+ *
+ * NVTX is used to make profiler filtering deterministic (Nsight Systems / Nsight Compute)
+ * without relying on fragile kernel-name matching or invocation-index counting.
+ */
+class NvtxRange
+{
+public:
+  /**
+   * @brief Begin an NVTX range if enabled.
+   *
+   * @param enabled Whether to emit NVTX markers.
+   * @param name Range label (copied by NVTX).
+   */
+  NvtxRange(bool enabled, const std::string &name) : m_enabled{enabled}
+  {
+    if (m_enabled)
+    {
+      nvtxRangePushA(name.c_str());
+    }
+  }
+
+  NvtxRange(const NvtxRange &)            = delete;
+  NvtxRange &operator=(const NvtxRange &) = delete;
+  NvtxRange(NvtxRange &&)                 = delete;
+  NvtxRange &operator=(NvtxRange &&)      = delete;
+
+  /** @brief End the NVTX range if enabled. */
+  ~NvtxRange()
+  {
+    if (m_enabled)
+    {
+      nvtxRangePop();
+    }
+  }
+
+private:
+  bool m_enabled{false};
+};
 
 /**
  * @brief Create a deterministic int8 host matrix with small integer values.
@@ -70,6 +113,278 @@ struct TimedRun
   CublasLtAlgoConfig algo{};
 };
 
+enum class Variant
+{
+  kAll,
+  kAB,
+  kATBView,
+  kABTView,
+};
+
+struct ForceAlgo
+{
+  bool enabled{false};
+  CublasLtAlgoConfig cfg{};
+};
+
+struct CliOptions
+{
+  int device_id{-1};
+  Variant variant{Variant::kAll};
+  int iters{2000};
+  int warmup_iters{200};
+  bool enable_nvtx{false};
+  bool enable_cuda_profiler_gating{false};
+  ForceAlgo force_algo{};
+};
+
+/**
+ * @brief Return true if @p s is a non-empty string of digits.
+ */
+bool is_digits(const std::string &s)
+{
+  if (s.empty())
+    return false;
+  for (const unsigned char c : s)
+  {
+    if (c < '0' || c > '9')
+      return false;
+  }
+  return true;
+}
+
+/**
+ * @brief Parse a CLI integer argument.
+ *
+ * @param arg Argument string.
+ * @param what Human-readable label used for errors.
+ * @return Parsed integer value.
+ */
+int parse_int(const std::string &arg, const char *what)
+{
+  try
+  {
+    return std::stoi(arg);
+  }
+  catch (...)
+  {
+    throw std::runtime_error(std::string("Invalid ") + what + ": '" + arg + "'");
+  }
+}
+
+/**
+ * @brief Parse a CLI unsigned integer argument.
+ *
+ * @param arg Argument string.
+ * @param what Human-readable label used for errors.
+ * @return Parsed unsigned integer value.
+ */
+std::uint32_t parse_u32(const std::string &arg, const char *what)
+{
+  const int v = parse_int(arg, what);
+  if (v < 0)
+  {
+    throw std::runtime_error(std::string("Invalid ") + what + " (must be >=0): '" + arg + "'");
+  }
+  return static_cast<std::uint32_t>(v);
+}
+
+/**
+ * @brief Convert a user-facing string into a Variant enum.
+ */
+Variant parse_variant(const std::string &s)
+{
+  if (s == "all")
+    return Variant::kAll;
+  if (s == "AB")
+    return Variant::kAB;
+  if (s == "ATB_view")
+    return Variant::kATBView;
+  if (s == "ABT_view")
+    return Variant::kABTView;
+  throw std::runtime_error("Invalid --variant (expected one of: all, AB, ATB_view, ABT_view): '" + s + "'");
+}
+
+/**
+ * @brief Format an algo config as a short human-readable string.
+ */
+std::string algo_to_string(const CublasLtAlgoConfig &cfg)
+{
+  return "algo=" + std::to_string(cfg.id) + " tile=" + std::to_string(cfg.tile_id)
+         + " stages=" + std::to_string(cfg.stages_id) + " splitk=" + std::to_string(cfg.splitk_num);
+}
+
+/**
+ * @brief Fill defaults for known algorithm IDs if fields are unset.
+ *
+ * This repro focuses on two observed configs from the sweep:
+ * - algo 23: tile=18, stages=21, splitk=1
+ * - algo 64: tile=20, stages=8,  splitk=1
+ */
+void apply_known_algo_defaults(CublasLtAlgoConfig &cfg)
+{
+  if (cfg.id == 23)
+  {
+    if (cfg.tile_id == 0)
+      cfg.tile_id = 18;
+    if (cfg.stages_id == 0)
+      cfg.stages_id = 21;
+    if (cfg.splitk_num == 0)
+      cfg.splitk_num = 1;
+  }
+  if (cfg.id == 64)
+  {
+    if (cfg.tile_id == 0)
+      cfg.tile_id = 20;
+    if (cfg.stages_id == 0)
+      cfg.stages_id = 8;
+    if (cfg.splitk_num == 0)
+      cfg.splitk_num = 1;
+  }
+}
+
+/**
+ * @brief Print usage information to stdout.
+ */
+void print_usage(const char *argv0)
+{
+  std::cout
+    << "Usage: " << argv0 << " [options]\n"
+    << "\n"
+    << "Options:\n"
+    << "  --variant {all|AB|ATB_view|ABT_view}   Select which GEMM variant(s) to run (default: all)\n"
+    << "  --iters N                              Timed iterations per plan (default: 2000)\n"
+    << "  --warmup N                             Warmup iterations per plan (default: 200)\n"
+    << "  --device ID                            CUDA device index to use (default: current)\n"
+    << "  --nvtx                                 Emit NVTX ranges around timed GEMM loops\n"
+    << "  --cuda-profiler-gating                 Call cudaProfilerStart/Stop around timed GEMM loops\n"
+    << "  --force-algo ID                        Force a cuBLASLt algorithm ID (enables AlgoCheck)\n"
+    << "  --tile-id ID                           Force tile_id (optional; defaults for algo 23/64)\n"
+    << "  --stages-id ID                         Force stages_id (optional; defaults for algo 23/64)\n"
+    << "  --splitk N                             Force splitk_num (optional; defaults for algo 23/64)\n"
+    << "  --help                                 Show this help\n"
+    << "\n"
+    << "Notes:\n"
+    << "  - For deterministic profiling, prefer running a single variant with --nvtx\n"
+    << "    and/or --cuda-profiler-gating, and set low --iters/--warmup.\n";
+}
+
+/**
+ * @brief Parse command line arguments into CliOptions.
+ *
+ * @throws std::runtime_error on invalid arguments.
+ */
+CliOptions parse_cli(int argc, char **argv)
+{
+  CliOptions out{};
+
+  if (const char *s = std::getenv("ACCELSIM_REPRO_ITERS"))
+    out.iters = std::max(1, std::atoi(s));
+  if (const char *s = std::getenv("ACCELSIM_REPRO_WARMUP"))
+    out.warmup_iters = std::max(0, std::atoi(s));
+
+  // Backwards-compatible positional device ID: ./repro <device_id>
+  // If argv[1] is a plain integer and not an option, treat it as --device.
+  int i = 1;
+  if (argc >= 2)
+  {
+    const std::string a1 = argv[1];
+    if (!a1.empty() && a1[0] != '-' && is_digits(a1))
+    {
+      out.device_id = parse_int(a1, "device id");
+      i             = 2;
+    }
+  }
+
+  for (; i < argc; ++i)
+  {
+    const std::string arg = argv[i];
+    auto require_value = [&](const char *flag) -> std::string {
+      if (i + 1 >= argc)
+      {
+        throw std::runtime_error(std::string("Missing value for ") + flag);
+      }
+      return std::string(argv[++i]);
+    };
+
+    if (arg == "--help" || arg == "-h")
+    {
+      print_usage(argv[0]);
+      std::exit(0);
+    }
+    if (arg == "--variant")
+    {
+      out.variant = parse_variant(require_value("--variant"));
+      continue;
+    }
+    if (arg == "--iters")
+    {
+      out.iters = std::max(1, parse_int(require_value("--iters"), "iters"));
+      continue;
+    }
+    if (arg == "--warmup")
+    {
+      out.warmup_iters = std::max(0, parse_int(require_value("--warmup"), "warmup"));
+      continue;
+    }
+    if (arg == "--device")
+    {
+      out.device_id = parse_int(require_value("--device"), "device id");
+      continue;
+    }
+    if (arg == "--nvtx")
+    {
+      out.enable_nvtx = true;
+      continue;
+    }
+    if (arg == "--cuda-profiler-gating")
+    {
+      out.enable_cuda_profiler_gating = true;
+      continue;
+    }
+    if (arg == "--force-algo")
+    {
+      out.force_algo.enabled = true;
+      out.force_algo.cfg.id  = parse_int(require_value("--force-algo"), "algo id");
+      continue;
+    }
+    if (arg == "--tile-id")
+    {
+      out.force_algo.enabled    = true;
+      out.force_algo.cfg.tile_id = parse_u32(require_value("--tile-id"), "tile id");
+      continue;
+    }
+    if (arg == "--stages-id")
+    {
+      out.force_algo.enabled      = true;
+      out.force_algo.cfg.stages_id = parse_u32(require_value("--stages-id"), "stages id");
+      continue;
+    }
+    if (arg == "--splitk")
+    {
+      out.force_algo.enabled        = true;
+      out.force_algo.cfg.splitk_num = std::max(1, parse_int(require_value("--splitk"), "splitk"));
+      continue;
+    }
+
+    throw std::runtime_error("Unknown argument: '" + arg + "'. Use --help.");
+  }
+
+  if (out.force_algo.enabled)
+  {
+    apply_known_algo_defaults(out.force_algo.cfg);
+    // Default "unset" fields to 0 for non-specified knobs (valid for many algos).
+    out.force_algo.cfg.reduction_scheme = 0;
+    out.force_algo.cfg.cta_swizzling    = 0;
+    out.force_algo.cfg.custom_option    = 0;
+    out.force_algo.cfg.inner_shape_id   = 0;
+    out.force_algo.cfg.cluster_shape_id = 0;
+    out.force_algo.cfg.waves_count      = 0;
+  }
+
+  return out;
+}
+
 /**
  * @brief Build a cuBLASLt plan and time repeated executions of a GEMM on a single CUDA stream.
  *
@@ -115,6 +430,7 @@ TimedRun time_plan(const std::string &label,
                    void *c_dev,
                    const void *alpha,
                    const void *beta,
+                   bool enable_cuda_profiler_gating,
                    int warmup_iters,
                    int iters)
 {
@@ -133,11 +449,17 @@ TimedRun time_plan(const std::string &label,
     }
     CublasLtGemmPlan::CheckCuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(warmup)");
 
+    // Timed region.
     cudaEvent_t start{};
     cudaEvent_t stop{};
     CublasLtGemmPlan::CheckCuda(cudaEventCreate(&start), "cudaEventCreate(start)");
     CublasLtGemmPlan::CheckCuda(cudaEventCreate(&stop), "cudaEventCreate(stop)");
 
+    if (enable_cuda_profiler_gating)
+    {
+      // ncu can be configured with --profile-from-start off to profile only between start/stop.
+      cudaProfilerStart();
+    }
     CublasLtGemmPlan::CheckCuda(cudaEventRecord(start, stream), "cudaEventRecord(start)");
     for (int i = 0; i < iters; ++i)
     {
@@ -145,6 +467,10 @@ TimedRun time_plan(const std::string &label,
     }
     CublasLtGemmPlan::CheckCuda(cudaEventRecord(stop, stream), "cudaEventRecord(stop)");
     CublasLtGemmPlan::CheckCuda(cudaEventSynchronize(stop), "cudaEventSynchronize(stop)");
+    if (enable_cuda_profiler_gating)
+    {
+      cudaProfilerStop();
+    }
 
     float total_ms = 0.0f;
     CublasLtGemmPlan::CheckCuda(cudaEventElapsedTime(&total_ms, start, stop), "cudaEventElapsedTime");
@@ -214,27 +540,38 @@ int main(int argc, char **argv)
 {
   using namespace accelsim::gemm;
 
-  int iters        = 2000;
-  int warmup_iters = 200;
-  if (const char *s = std::getenv("ACCELSIM_REPRO_ITERS"))
-    iters = std::max(1, std::atoi(s));
-  if (const char *s = std::getenv("ACCELSIM_REPRO_WARMUP"))
-    warmup_iters = std::max(0, std::atoi(s));
-
-  // Optionally select device via argv[1] as an integer device index.
-  if (argc >= 2)
+  CliOptions cli{};
+  try
   {
-    const int dev = std::atoi(argv[1]);
-    cudaSetDevice(dev);
+    cli = parse_cli(argc, argv);
+  }
+  catch (const std::exception &e)
+  {
+    std::cerr << "ERROR: " << e.what() << "\n";
+    print_usage(argv[0]);
+    return 2;
   }
 
   int dev_id = 0;
+  if (cli.device_id >= 0)
+  {
+    cudaSetDevice(cli.device_id);
+  }
   CublasLtGemmPlan::CheckCuda(cudaGetDevice(&dev_id), "cudaGetDevice");
   cudaDeviceProp prop{};
   CublasLtGemmPlan::CheckCuda(cudaGetDeviceProperties(&prop, dev_id), "cudaGetDeviceProperties");
   std::cout << "Repro: N=1000 int8 GEMM variants (focus: ABT_view algo 23)\n";
   std::cout << "GPU: " << prop.name << " (cc " << prop.major << "." << prop.minor << ")\n";
-  std::cout << "iters=" << iters << " warmup=" << warmup_iters << "\n\n";
+  std::cout << "iters=" << cli.iters << " warmup=" << cli.warmup_iters << "\n";
+  if (cli.variant != Variant::kAll)
+  {
+    std::cout << "variant=" << (cli.variant == Variant::kAB ? "AB" : (cli.variant == Variant::kATBView ? "ATB_view" : "ABT_view")) << "\n";
+  }
+  if (cli.force_algo.enabled)
+  {
+    std::cout << "forced " << algo_to_string(cli.force_algo.cfg) << "\n";
+  }
+  std::cout << "\n";
 
   const int n = kN;
   const GemmDims dims{n, n, n};
@@ -316,22 +653,66 @@ int main(int argc, char **argv)
       return o;
     };
 
+    auto run_one = [&](const std::string &label,
+                       cublasOperation_t ta,
+                       cublasOperation_t tb,
+                       const GemmPlanOptions &opts) -> TimedRun {
+      const std::string range_name = label;
+      const NvtxRange range(cli.enable_nvtx, range_name);
+      return time_plan(label, dims, types, a_dims, b_dims, c_dims, ta, tb, opts,
+                       stream, a_dev, b_dev, c_dev, &alpha, &beta, cli.enable_cuda_profiler_gating, cli.warmup_iters, cli.iters);
+    };
+
+    auto make_opts = [&](const CublasLtAlgoConfig &cfg) -> GemmPlanOptions {
+      if (!cli.force_algo.enabled)
+      {
+        return heuristic_opts;
+      }
+      return forced_opts(cfg);
+    };
+
+    const auto forced_cfg = [&]() -> CublasLtAlgoConfig {
+      if (!cli.force_algo.enabled)
+      {
+        return CublasLtAlgoConfig{};
+      }
+      return cli.force_algo.cfg;
+    }();
+
+    const auto run_variant = [&](Variant v) -> TimedRun {
+      if (v == Variant::kAB)
+      {
+        return run_one(cli.force_algo.enabled ? "AB (forced)" : "AB (heuristic)",
+                       CUBLAS_OP_N, CUBLAS_OP_N,
+                       make_opts(forced_cfg));
+      }
+      if (v == Variant::kATBView)
+      {
+        return run_one(cli.force_algo.enabled ? "ATB_view (forced)" : "ATB_view (heuristic)",
+                       CUBLAS_OP_T, CUBLAS_OP_N,
+                       make_opts(forced_cfg));
+      }
+      return run_one(cli.force_algo.enabled ? "ABT_view (forced)" : "ABT_view (heuristic)",
+                     CUBLAS_OP_N, CUBLAS_OP_T,
+                     make_opts(forced_cfg));
+    };
+
+    if (cli.variant != Variant::kAll)
+    {
+      const auto r = run_variant(cli.variant);
+      if (r.ok && cli.force_algo.enabled)
+      {
+        std::cout << "Selected " << algo_to_string(r.algo) << "\n";
+      }
+      print_row(r);
+      return r.ok ? 0 : 1;
+    }
+
+    // Default "all" mode (kept for backward compatibility and quick sanity checks).
     std::cout << "Heuristic selections (baseline):\n";
-    const auto r_ab = time_plan("AB (heuristic)",
-                                dims, types, a_dims, b_dims, c_dims,
-                                CUBLAS_OP_N, CUBLAS_OP_N,
-                                heuristic_opts,
-                                stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
-    const auto r_atb = time_plan("ATB_view (heuristic)",
-                                 dims, types, a_dims, b_dims, c_dims,
-                                 CUBLAS_OP_T, CUBLAS_OP_N,
-                                 heuristic_opts,
-                                 stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
-    const auto r_abt = time_plan("ABT_view (heuristic)",
-                                 dims, types, a_dims, b_dims, c_dims,
-                                 CUBLAS_OP_N, CUBLAS_OP_T,
-                                 heuristic_opts,
-                                 stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
+    const auto r_ab  = run_one("AB (heuristic)", CUBLAS_OP_N, CUBLAS_OP_N, heuristic_opts);
+    const auto r_atb = run_one("ATB_view (heuristic)", CUBLAS_OP_T, CUBLAS_OP_N, heuristic_opts);
+    const auto r_abt = run_one("ABT_view (heuristic)", CUBLAS_OP_N, CUBLAS_OP_T, heuristic_opts);
     print_row(r_ab);
     print_row(r_atb);
     print_row(r_abt);
@@ -342,32 +723,16 @@ int main(int argc, char **argv)
     std::cout << "\n";
 
     std::cout << "Force algo 23 into other transpose modes (if supported):\n";
-    const auto r_ab_force23 = time_plan("AB forced algo23",
-                                        dims, types, a_dims, b_dims, c_dims,
-                                        CUBLAS_OP_N, CUBLAS_OP_N,
-                                        forced_opts(cfg23),
-                                        stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
-    const auto r_atb_force23 = time_plan("ATB forced algo23",
-                                         dims, types, a_dims, b_dims, c_dims,
-                                         CUBLAS_OP_T, CUBLAS_OP_N,
-                                         forced_opts(cfg23),
-                                         stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
-    const auto r_abt_force23 = time_plan("ABT forced algo23",
-                                         dims, types, a_dims, b_dims, c_dims,
-                                         CUBLAS_OP_N, CUBLAS_OP_T,
-                                         forced_opts(cfg23),
-                                         stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
+    const auto r_ab_force23  = run_one("AB forced algo23", CUBLAS_OP_N, CUBLAS_OP_N, forced_opts(cfg23));
+    const auto r_atb_force23 = run_one("ATB forced algo23", CUBLAS_OP_T, CUBLAS_OP_N, forced_opts(cfg23));
+    const auto r_abt_force23 = run_one("ABT forced algo23", CUBLAS_OP_N, CUBLAS_OP_T, forced_opts(cfg23));
     print_row(r_ab_force23);
     print_row(r_atb_force23);
     print_row(r_abt_force23);
     std::cout << "\n";
 
     std::cout << "Control: try forcing algo 64 into ABT_view (if supported):\n";
-    const auto r_abt_force64 = time_plan("ABT forced algo64",
-                                         dims, types, a_dims, b_dims, c_dims,
-                                         CUBLAS_OP_N, CUBLAS_OP_T,
-                                         forced_opts(cfg64),
-                                         stream, a_dev, b_dev, c_dev, &alpha, &beta, warmup_iters, iters);
+    const auto r_abt_force64 = run_one("ABT forced algo64", CUBLAS_OP_N, CUBLAS_OP_T, forced_opts(cfg64));
     print_row(r_abt_force64);
     std::cout << "\n";
 

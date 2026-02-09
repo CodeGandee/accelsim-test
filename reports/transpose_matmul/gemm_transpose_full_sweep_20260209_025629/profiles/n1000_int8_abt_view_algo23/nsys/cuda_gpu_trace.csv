@@ -1,0 +1,5 @@
+Start (ns),Duration (ns),CorrId,GrdX,GrdY,GrdZ,BlkX,BlkY,BlkZ,Reg/Trd,StcSMem (MB),DymSMem (MB),Bytes (MB),Throughput (MB/s),SrcMemKd,DstMemKd,Device,Ctx,GreenCtx,Strm,Name
+1149776304,22400,929,,,,,,,,,,1.000,44642.000,Pageable,Device,NVIDIA B200 (0),1,,7,[CUDA memcpy Host-to-Device]
+1149900914,22208,930,,,,,,,,,,1.000,45028.000,Pageable,Device,NVIDIA B200 (0),1,,7,[CUDA memcpy Host-to-Device]
+1149937010,2144,931,,,,,,,,,,4.000,1865668.000,Device,,NVIDIA B200 (0),1,,20,[CUDA memset]
+1158552547,11649,2379,128,1,1,128,1,1,148,0.000,0.074,,,,,NVIDIA B200 (0),1,,20,ABT_view (forced)/void cutlass::Kernel2<cutlass_80_tensorop_i16832gemm_s8_128x64_128x3_tn_align4>(T1::Params)

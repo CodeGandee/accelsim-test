@@ -1,0 +1,32 @@
+Launch Settings
+"Launch Attribute","Value"
+"Profiler Command Line","/home/huangzhe/.pixi/envs/nsight-compute/nsight-compute-2025.2.1/target/linux-desktop-glibc_2_11_3-x64/ncu --force-overwrite --log-file tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/ncu.log --set basic --export tmp/algo23_investigation/profiles/n1000_int8_abt_view_algo23/ncu/profile --clock-control base --pipeline-boost-state stable --profile-from-start off ./cpp/build/Release/repro_algo23_int8_n1000 --variant ABT_view --force-algo 23 --tile-id 18 --stages-id 21 --splitk 1 --cuda-profiler-gating --nvtx --iters 1 --warmup 0 "
+
+Session Info
+"Session Attribute","Value"
+"Created","2026-Feb-09 11:12:05"
+"Host Name","b200-1"
+"Host OS","Linux - #96-Ubuntu SMP PREEMPT_DYNAMIC Fri Jan  9 20:36:55 UTC 2026"
+"Host Architecture","x86_64"
+"Host Processor","Intel(R) Xeon(R) 6960P"
+"Target Name","b200-1"
+"Target IP Addresses","10.1.17.11, 172.17.0.1, fe80::925a:8ff:fe9b:5d6a%ens110f0np0, fe80::c4ad:3cff:feb4:caa1%docker0, fe80::8c3:6bff:fe19:1518%veth415294c, fe80::58d3:dbff:fe4f:cfc3%vethbf29f9e"
+"Target OS","Linux - #96-Ubuntu SMP PREEMPT_DYNAMIC Fri Jan  9 20:36:55 UTC 2026"
+"Target Architecture","x86_64"
+"Target Processor","Intel(R) Xeon(R) 6960P"
+"CUDA Version","13.1"
+"PerfWorks","0.1.0"
+"Nsight Compute Target","2025.2.1.0 (build 35987062) (public-release)"
+
+Processes
+"Process Id","Process Name"
+"885949","/data/ssd1/huangzhe/code/accelsim-test/cpp/build/Release/repro_algo23_int8_n1000"
+
+Device Attributes
+"Device Attribute","Device 0"
+"confidential_computing_mode","No-CC"
+"multiprocessor_count","148"
+"display_name","NVIDIA B200"
+"compute_capability_major","10"
+"compute_capability_minor","0"
+"total_memory","191505498112"

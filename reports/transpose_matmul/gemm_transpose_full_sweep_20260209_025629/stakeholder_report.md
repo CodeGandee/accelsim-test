@@ -117,6 +117,53 @@ Interpretation:
 - For this `(M,N,K)=(1000,1000,1000)` int8 problem, cuBLASLt rejects forcing algo 23 for `AB` and `ATB_view` via `cublasLtMatmulAlgoCheck` (status 15), so those rows are **NA**.
 - Absolute timings differ from the NVBench sweep (different harness and iteration strategy), but the key effect (algo 23 fast path for `ABT_view`) remains.
 
+### Kernel Attribution (nsys) + Runtime Details (ncu)
+
+The open question in the table above is: **what exactly is `algo_id=23` doing differently?** Algorithm IDs are not kernel names; the only reliable way to answer is to capture the executed kernels and profile them.
+
+We attached a standalone profiling bundle under this report directory:
+
+- Fast path (`ABT_view` forced `algo_id=23`): `profiles/n1000_int8_abt_view_algo23/`
+- Baseline (`ABT_view` forced `algo_id=64`): `profiles/n1000_int8_abt_view_algo64/`
+
+#### Kernel used (nsys)
+
+From `nsys` kernel discovery (`profiles/.../nsys/kernel_list.csv`), the timed GEMM kernel differs:
+
+- `algo_id=23` kernel (grid `128x1x1`, block `128x1x1`):
+  - `cutlass::Kernel2<cutlass_80_tensorop_i16832gemm_s8_128x64_128x3_tn_align4>(...)`
+- `algo_id=64` kernel (grid `64x1x1`, block `256x1x1`):
+  - `cutlass::Kernel2<cutlass_80_wmma_tensorop_i161616gemm_s8_forwardCompat_128x128_32x2_tn_align4>(...)`
+
+This is a direct, concrete explanation for “why the heuristic flip matters”: `ABT_view` + `algo_id=23` is executing a **different CUTLASS GEMM kernel family** with a different launch configuration.
+
+#### Kernel-level runtime deltas (ncu; set=basic)
+
+From `ncu` (`profiles/.../ncu/details.csv`), key metrics for the main kernel are:
+
+| metric | `algo_id=23` | `algo_id=64` |
+|---|---:|---:|
+| Duration | 22.59 us | 49.95 us |
+| Compute (SM) Throughput | 15.01% | 12.49% |
+| Memory Throughput | 44.98% | 21.70% |
+| DRAM Throughput | 1.36% | 0.61% |
+| L2 Cache Throughput | 9.14% | 5.03% |
+| L1/TEX Cache Throughput | 71.75% | 59.24% |
+| Grid size | 128 blocks | 64 blocks |
+| Block size | 128 threads | 256 threads |
+| Waves per SM | 0.29 | 0.22 |
+
+Interpretation (evidence-backed, not speculative):
+
+- `algo_id=23` is faster primarily because its kernel is ~2.2x shorter in duration at the kernel level (22.6us vs 50.0us).
+- The fast kernel shows materially higher measured throughput (especially “Memory Throughput” and L1/L2 throughput), consistent with a more effective data-movement + compute pipeline for this small-shape int8 TN problem.
+- Both launches are under-filled (waves per SM << 1) due to the small GEMM size; however, `algo_id=23` launches **more blocks** (128 vs 64), which reduces underutilization and improves achieved throughput.
+
+Notes:
+
+- The `ncu` captures use `--profile-from-start off` and `cudaProfilerStart/Stop` gating in the repro to isolate the timed GEMM region.
+- `ncu` overhead makes “wall clock” timings from the repro meaningless during profiling; only kernel metrics and relative comparisons should be used here.
+
 ### Non-square Suite (FLOP-matched; view vs copy)
 
 Non-square timing is split into two suites with **different storage shapes** (so the transpose-view expressions are well-defined for non-square matrices):

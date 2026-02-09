@@ -1,0 +1,2 @@
+global_index,trace_row_index,name_index,start_ns,duration_ns,corr_id,grid,block,reg_per_thread,static_smem_mb,dynamic_smem_mb,device,ctx,stream,name
+0,3,0,1167019946,25473,2380,64x1x1,256x1x1,122,0.000,0.035,NVIDIA B200 (0),1,20,ABT_view (forced)/void cutlass::Kernel2<cutlass_80_wmma_tensorop_i161616gemm_s8_forwardCompat_128x128_32x2_tn_align4>(T1::Params)
