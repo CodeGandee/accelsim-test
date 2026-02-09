@@ -9,6 +9,38 @@ This note explains the large kernel-duration difference observed in the B200 / C
 
 This is intentionally **not** a program-generated report. It references the profiling artifacts captured under this run directory.
 
+## Terminology (shortnames used in this note)
+
+- **GEMM**: General Matrix Multiply, `C = A * B` (with optional transposes).
+- **`ABT_view`**: The benchmark case `A @ B.T` (transpose flags `trans_a=N`, `trans_b=T`). This is a *view/layout choice* at the benchmark level; internally, a kernel may still choose a specific data movement strategy.
+- **`algo_id` / “algo23”, “algo64”**: cuBLASLt algorithm IDs as selected/forced in the run. Changing `algo_id` can change the entire kernel family (not just a small tuning knob).
+- **CUTLASS**: NVIDIA’s open-source CUDA template library for GEMM/Conv. cuBLASLt often uses CUTLASS-derived kernels under the hood.
+- **Kernel name**: The `cutlass_...` string reported by `nsys` / `ncu`. It encodes tiling, instruction class, layouts, and more.
+
+GPU execution:
+
+- **Grid**: The full set of blocks launched for a kernel.
+- **Block / Threadblock / TB**: A CUDA thread block. Size shown as `block=(threads_x, threads_y, threads_z)`.
+- **CTA** (*Cooperative Thread Array*): NVIDIA’s term for a thread block. In practice, **CTA ≈ threadblock**.
+- **SM** (*Streaming Multiprocessor*): The basic execution unit on NVIDIA GPUs. A kernel runs by scheduling CTAs onto SMs.
+- **Wave**: One “pass” where at most one CTA per SM (or more, depending on resources) is resident; for small grids, you may see `< 1` wave per SM, meaning the GPU is underfilled.
+- **Warp**: 32 threads scheduled together.
+
+Tensor Core math:
+
+- **MMA**: Matrix Multiply-Accumulate instruction family on Tensor Cores (PTX: `mma.sync.*`).
+- **WMMA**: Warp Matrix Multiply-Accumulate API/instruction family (PTX: `wmma.*`). Still uses Tensor Cores, but via the WMMA abstraction.
+- **Opcode class `tensorop` vs `wmma_tensorop`**: CUTLASS shorthand for “MMA-sync TensorOp path” vs “WMMA path”.
+- **`i16832` / `i161616`**: Encoded MMA tile shapes for int8:
+  - `i16832` aligns with `m16n8k32` (typical for int8 MMA-sync paths).
+  - `i161616` aligns with `m16n16k16` (typical WMMA shape).
+
+Tiling / pipelining:
+
+- **`TB_MxTB_N`**: Threadblock tile shape in M and N (e.g., `128x64`).
+- **`TB_K`**: Threadblock tile in K (depth). Smaller `TB_K` generally means more mainloop iterations for a fixed `K`.
+- **Stages / pipeline stages**: How many mainloop stages are used to overlap memory movement and compute (e.g., `..._128x3` suggests `TB_K=128`, `stages=3` in typical CUTLASS naming).
+
 ## Artifacts (evidence)
 
 Kernel discovery (Nsight Systems):
