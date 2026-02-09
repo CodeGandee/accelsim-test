@@ -52,12 +52,12 @@ Two key fields differ here:
 1) **Opcode class:** `tensorop` vs `wmma_tensorop`
 
 - `TensorOp` kernels use Tensor Core MMA directly.
-- `WmmaTensorOp` kernels use the CUDA WMMA abstraction (still on Tensor Cores, but with additional constraints and potentially different kernel variants).
+- `WmmaTensorOp` kernels use the CUDA WMMA abstraction (still on Tensor Cores, but with additional constraints and potentially different kernel variants). CUTLASS explicitly distinguishes these opcode classes in its documentation.
 
 2) **MMA instruction shape:** `i16832` vs `i161616`
 
-- `i161616` corresponds to a WMMA 16×16×16 instruction shape.
-- `i16832` corresponds to a TensorOp 16×8×32 instruction shape.
+- `i161616` aligns with the WMMA shape `m16n16k16` (i.e., 16×16×16) described in the CUDA PTX ISA documentation for `wmma.*` operations.
+- `i16832` aligns with the dense Tensor Core MMA shape `m16n8k32` (i.e., 16×8×32) described in the CUDA PTX ISA documentation for `mma.sync.*` operations (integer `s8/u8` supports `m16n8k32`).
 
 These are fundamentally different warp-level math primitives, which cascades into different data movement and scheduling at the threadblock level.
 
@@ -74,6 +74,15 @@ If this interpretation holds (and it matches the conventional encoding used in C
 - `TB_K=32`  → ~`ceil(1000/32)=32` mainloop iterations
 
 That is a **4× difference** in the number of pipeline/mainloop “steps” per CTA, which can translate into a large runtime delta for small/medium GEMMs where fixed overheads matter.
+
+4) **Threadblock tile implies different “shape decomposition” of the GEMM**
+
+For `M=N=1000` and the threadblock tiles implied by the names:
+
+- `TB_MxTB_N = 128x64` → `ceil(1000/128) * ceil(1000/64) = 8 * 16 = 128` CTAs (matches the observed `grid=128`)
+- `TB_MxTB_N = 128x128` → `ceil(1000/128) * ceil(1000/128) = 8 * 8 = 64` CTAs (matches the observed `grid=64`)
+
+This matters on B200 because **both kernels are “underfilled”** (grid smaller than SM count), so the entire kernel duration is essentially the duration of a single wave of CTAs. In that regime, *per-CTA efficiency* dominates: a kernel that does fewer mainloop steps and overlaps memory better can be much faster even if it uses more shared memory.
 
 ## What do the `ncu` numbers say?
 
@@ -115,6 +124,29 @@ This GEMM is small enough that *grid size* is a major factor. Doubling CTAs (64 
 
 The `WmmaTensorOp ... forwardCompat` naming suggests this kernel is a more compatibility-oriented WMMA path. In practice, it can carry additional constraints that lead to less favorable schedules for this exact TN int8 problem, compared to the `TensorOp i16832` family.
 
+4) **Different implementation “era”: `wmma_tensorop ... forwardCompat` tends to be a more conservative kernel family**
+
+This is the key “kernel name → CUTLASS intuition” point:
+
+- `tensorop_i16832...` kernels typically map to CUTLASS’s lower-level Tensor Core MMA pathway (`mma.sync.*`) plus architecture-specific data movement patterns (e.g., `ldmatrix`-style shared-memory matrix loads and multi-stage pipelining). The name’s `..._128x3...` staging hint is consistent with “deeper” pipelining.
+- `wmma_tensorop_i161616...forwardCompat...` kernels typically map to CUTLASS’s WMMA abstraction pathway (`wmma.*`). The “forwardCompat” hint usually means “pick a WMMA-compatible variant that will run broadly”, which often correlates with more conservative tile-K and staging choices (here: `..._32x2...`), and less aggressive overlap.
+
+You can treat this as a hypothesis until verified, but it matches the measured symptom: **`algo_id=64` has ~2× lower Memory Throughput (21.7% vs 45.0%) and ~2.2× longer Duration**, consistent with a kernel that is less effective at feeding Tensor Core math on this problem.
+
+## How to validate the above with “hard” evidence (SASS / instruction mix)
+
+If you want a definitive answer beyond inference from names/metrics:
+
+1) Open `profiles/.../ncu/profile.ncu-rep` in Nsight Compute GUI and inspect **Source / SASS**:
+   - For `algo_id=23`, look for `mma.sync.aligned.m16n8k32...s8...` (or corresponding SASS) and `cp.async` / `ldmatrix` patterns.
+   - For `algo_id=64`, look for `wmma.mma.sync.aligned.m16n16k16...s8...` (or corresponding SASS) and whether the pipeline relies on classic `ld.global` → `st.shared` → `ld.shared` rather than `cp.async`.
+
+2) In `ncu` CLI exports, add additional sections/metrics if needed:
+   - Instruction mix: Tensor Core pipe utilization, total instruction counts, barrier/sync counts
+   - Memory pipeline: `cp.async` usage (if available), shared-memory bank conflict indicators, L1/L2 hit rates
+
+Those checks will tell you whether the real root cause is (a) mainloop step count, (b) memory pipeline differences, (c) barrier overhead, or (d) instruction-level efficiency differences between WMMA and MMA-sync kernels on this architecture.
+
 ## Caveats / what this does not prove yet
 
 - The exact mapping from name fields to `(TB_M,TB_N,TB_K,stages)` is inferred from typical CUTLASS naming conventions. It is a strong hint, but it is not a formal guarantee without inspecting the exact CUTLASS template instantiation in the library build.
@@ -148,4 +180,3 @@ pixi run python scripts/cublaslt_ncu_profile.py \
   --set basic \
   -- ./cpp/build/Release/repro_algo23_int8_n1000
 ```
-
