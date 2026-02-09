@@ -174,7 +174,10 @@ json dump_caps(const cublasLtMatmulAlgo_t &algo)
   caps["min_alignment_b_bytes"] = cap_scalar<std::uint32_t>(algo, CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_B_BYTES);
   caps["min_alignment_c_bytes"] = cap_scalar<std::uint32_t>(algo, CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_C_BYTES);
   caps["min_alignment_d_bytes"] = cap_scalar<std::uint32_t>(algo, CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_D_BYTES);
+  // Some CUDA / cuBLASLt versions may not define this cap.
+#ifdef CUBLASLT_ALGO_CAP_ATOMIC_SYNC
   caps["atomic_sync"] = cap_scalar<std::int32_t>(algo, CUBLASLT_ALGO_CAP_ATOMIC_SYNC);
+#endif
 
   // List caps.
   caps["tile_ids"] = cap_u32_list(algo, CUBLASLT_ALGO_CAP_TILE_IDS);
@@ -354,4 +357,3 @@ int main(int argc, char **argv)
     return 1;
   }
 }
-

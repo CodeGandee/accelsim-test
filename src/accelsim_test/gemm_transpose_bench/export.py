@@ -115,10 +115,10 @@ def _detect_cuda_toolkit_version() -> str | None:
     out = _run_capture(["nvcc", "--version"])
     if not out:
         return None
-    m = re.search(r"release\\s+(\\d+\\.\\d+)", out)
+    m = re.search(r"release\s+(\d+\.\d+)", out)
     if m:
         return m.group(1)
-    m = re.search(r"V(\\d+\\.\\d+\\.\\d+)", out)
+    m = re.search(r"V(\d+\.\d+\.\d+)", out)
     if m:
         return m.group(1)
     return None
