@@ -163,6 +163,7 @@ Notes:
 
 - The `ncu` captures use `--profile-from-start off` and `cudaProfilerStart/Stop` gating in the repro to isolate the timed GEMM region.
 - `ncu` overhead makes “wall clock” timings from the repro meaningless during profiling; only kernel metrics and relative comparisons should be used here.
+- For more detail on decoding the CUTLASS kernel names and why the tile/instruction-shape differences can produce a large delta at `N=1000`, see `kernel-difference-explain.md`.
 
 ### Non-square Suite (FLOP-matched; view vs copy)
 
