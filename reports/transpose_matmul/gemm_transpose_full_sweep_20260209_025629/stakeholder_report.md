@@ -63,6 +63,16 @@ This corresponds to `record.dtype.{a,b,c,compute,math_mode}` in `results.json`.
 | `fp32,fp32->fp32 (tf32,tf32)` | 0.018 (73) | 0.018 (73) | 0.019 (73) | 0.018 (73) | 0.018 (73) |
 | `int8,int8->int32 (int32,default)` | 0.018 (71) | 0.019 (71) | 0.019 (71) | 0.018 (71) | 0.018 (71) |
 
+#### N=1000
+
+| dtype_pair | A@B(ms) (algo_id) | A.T@B(ms) (algo_id) | A@B.T(ms) (algo_id) | copy(A.T)@B(ms) (algo_id) | A@copy(B.T)(ms) (algo_id) |
+|---|---:|---:|---:|---:|---:|
+| `bf16,bf16->bf16 (fp32,default)` | 0.015 (66) | 0.014 (66) | 0.014 (66) | 0.015 (66) | 0.015 (66) |
+| `fp16,fp16->fp16 (fp32,default)` | 0.015 (66) | 0.014 (66) | 0.015 (66) | 0.015 (66) | 0.015 (66) |
+| `fp32,fp32->fp32 (fp32,default)` | 0.052 (76) | 0.052 (76) | 0.054 (76) | 0.052 (76) | 0.053 (76) |
+| `fp32,fp32->fp32 (tf32,tf32)` | 0.019 (73) | 0.018 (73) | 0.019 (73) | 0.019 (73) | 0.018 (73) |
+| `int8,int8->int32 (int32,default)` | 0.045 (64) | 0.047 (64) | **0.019 (23)** | 0.045 (64) | 0.045 (64) |
+
 ### Square Algo Flips (B200)
 
 Only the following square sizes have any `algo_id` differences across cases in this run (highlighted in **bold**):
