@@ -1,0 +1,9 @@
+Repro: N=1000 int8 GEMM variants (focus: ABT_view algo 23)
+GPU: NVIDIA B200 (cc 10.0)
+iters=2000 warmup=200
+order_a=col order_b=col order_c=row
+symmetric_inputs=true
+variant=ATB_view
+
+ACCELSIM_GEMM_RUN {"label":"ATB_view (heuristic)","ok":true,"avg_ms":0.012288,"algo_id":23,"tile_id":18,"stages_id":21,"splitk_num":1,"trans_a":"T","trans_b":"N","order_a":"col","order_b":"col","order_c":"row","iters":2000,"warmup":200,"symmetric_inputs":true}
+ATB_view (heuristic)       0.0123 ms  algo=23 tile=18 stages=21 splitk=1

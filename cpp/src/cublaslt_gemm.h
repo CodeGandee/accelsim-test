@@ -54,10 +54,17 @@ struct GemmAlgoOverride
   CublasLtAlgoConfig config{};
 };
 
+struct GemmLayoutOrders
+{
+  cublasLtOrder_t a{CUBLASLT_ORDER_ROW};
+  cublasLtOrder_t b{CUBLASLT_ORDER_ROW};
+  cublasLtOrder_t c{CUBLASLT_ORDER_ROW};
+};
+
 struct GemmPlanOptions
 {
   std::size_t max_workspace_bytes{64ull * 1024ull * 1024ull};
-  cublasLtOrder_t order{CUBLASLT_ORDER_ROW};
+  GemmLayoutOrders orders{};
   GemmAlgoOverride algo_override{};
 };
 

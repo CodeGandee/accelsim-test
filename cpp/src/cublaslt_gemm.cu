@@ -90,9 +90,9 @@ CublasLtGemmPlan::CublasLtGemmPlan(const GemmDims &dims,
   CheckLt(cublasLtMatrixLayoutCreate(&m_c_layout, types.c_type, c_dims.rows, c_dims.cols, c_dims.ld),
           "cublasLtMatrixLayoutCreate(C)");
 
-  set_layout_order(m_a_layout, opts.order);
-  set_layout_order(m_b_layout, opts.order);
-  set_layout_order(m_c_layout, opts.order);
+  set_layout_order(m_a_layout, opts.orders.a);
+  set_layout_order(m_b_layout, opts.orders.b);
+  set_layout_order(m_c_layout, opts.orders.c);
 
   cublasLtMatmulHeuristicResult_t heur{};
   if (opts.algo_override.enabled)

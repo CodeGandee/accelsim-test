@@ -1,0 +1,2 @@
+cwd: /data/ssd1/huangzhe/code/accelsim-test
+command: pixi run -e cuda13 cpp/build/Release/repro_algo23_int8_n1000 --variant ATB_view --iters 2000 --warmup 200 --order-a row --order-b col --order-c row --device 0 --symmetric-inputs --summary-json

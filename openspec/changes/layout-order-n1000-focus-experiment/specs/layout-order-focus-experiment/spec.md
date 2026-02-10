@@ -7,18 +7,33 @@ The system SHALL provide a focused experiment that runs the following GEMM trans
 - `ATB_view`: `trans_a=T`, `trans_b=N`
 - `ABT_view`: `trans_a=N`, `trans_b=T`
 
-The experiment SHALL execute the full 2×3 matrix by varying the cuBLASLt matrix-layout order:
+The experiment SHALL execute a full 4×3 matrix by varying the cuBLASLt matrix-layout order of A and B independently:
 
-- Row-major: `CUBLASLT_ORDER_ROW`
-- Column-major: `CUBLASLT_ORDER_COL`
+- A order:
+  - Row-major: `CUBLASLT_ORDER_ROW`
+  - Column-major: `CUBLASLT_ORDER_COL`
+- B order:
+  - Row-major: `CUBLASLT_ORDER_ROW`
+  - Column-major: `CUBLASLT_ORDER_COL`
 
-#### Scenario: Execute row-major runs
-- **WHEN** the user selects `order=row`
-- **THEN** the system runs `AB`, `ATB_view`, and `ABT_view` using row-major matrix layouts and records the selected algorithm/kernel evidence.
+#### Scenario: Execute a selected (A order, B order) run
+- **WHEN** the user selects an A order and a B order (e.g., `order_a=row`, `order_b=col`)
+- **THEN** the system runs `AB`, `ATB_view`, and `ABT_view` using those matrix-layout orders and records the selected algorithm/kernel evidence.
+- **AND** the output artifacts MUST record both the A and B layout orders used for the run.
 
-#### Scenario: Execute column-major runs
-- **WHEN** the user selects `order=col`
-- **THEN** the system runs `AB`, `ATB_view`, and `ABT_view` using column-major matrix layouts and records the selected algorithm/kernel evidence.
+#### Scenario: Execute mixed-order runs
+- **WHEN** the user selects mixed A/B layout orders (i.e., `order_a != order_b`)
+- **THEN** the system runs `AB`, `ATB_view`, and `ABT_view` using those mixed matrix-layout orders and records the selected algorithm/kernel evidence.
+
+### Requirement: Limited output-order variation (C order)
+The system SHALL support varying the output matrix layout order (C/D layouts) and SHALL include a limited output-order sensitivity check for the baseline `order_a=row, order_b=row` case.
+
+#### Scenario: Sweep output order for row/row
+- **WHEN** the user runs the experiment matrix
+- **THEN** the system MUST run the `order_a=row, order_b=row` cases for both:
+  - `order_c=row` and
+  - `order_c=col`
+- **AND** the output artifacts MUST record the output order used for each run.
 
 ### Requirement: Optional math-equivalence mode
 The system SHALL support an option to generate inputs such that the three transpose-view cases produce the same mathematical result, to avoid “different GEMM” concerns during performance comparison.

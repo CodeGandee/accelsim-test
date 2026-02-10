@@ -1,0 +1,25 @@
+{
+  "device": 0,
+  "git": {
+    "branch": "main",
+    "commit": "cb09f30173c78512aa24fced8ca3723d37eb9e6d",
+    "dirty": true
+  },
+  "host": {
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-94-generic-x86_64-with-glibc2.39"
+  },
+  "iters": 2000,
+  "ncu": false,
+  "ncu_set": "basic",
+  "nsys": false,
+  "out_dir": "tmp/layout_order_n1000_20260210_075753",
+  "pixi_env": "cuda13",
+  "profile_iters": 1,
+  "profile_warmup": 0,
+  "repro_bin": "cpp/build/Release/repro_algo23_int8_n1000",
+  "symmetric_inputs": true,
+  "timestamp_utc": "2026-02-10T07:57:53.955840+00:00",
+  "tool": "layout_order_focus_experiment",
+  "warmup": 200
+}

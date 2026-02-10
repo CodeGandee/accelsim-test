@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -75,7 +76,7 @@ private:
  * @param seed RNG seed to make runs reproducible.
  * @return Host buffer of size rows*cols in row-major order.
  */
-std::vector<std::int8_t> make_host_matrix_int8(int rows, int cols, int seed)
+std::vector<std::int8_t> make_logical_matrix_int8(int rows, int cols, int seed)
 {
   std::vector<std::int8_t> out(static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols));
   std::mt19937 rng(seed);
@@ -85,6 +86,44 @@ std::vector<std::int8_t> make_host_matrix_int8(int rows, int cols, int seed)
     v = static_cast<std::int8_t>(dist(rng));
   }
   return out;
+}
+
+/**
+ * @brief Convert a logical row-major matrix into a specified storage order.
+ *
+ * The input is interpreted as row-major (index = i*cols + j). The output is packed
+ * as either row-major or column-major based on @p order.
+ */
+std::vector<std::int8_t> pack_matrix_int8(const std::vector<std::int8_t> &logical, int rows, int cols, cublasLtOrder_t order)
+{
+  std::vector<std::int8_t> out(static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols));
+  for (int i = 0; i < rows; ++i)
+  {
+    for (int j = 0; j < cols; ++j)
+    {
+      const std::size_t src = static_cast<std::size_t>(i) * static_cast<std::size_t>(cols) + static_cast<std::size_t>(j);
+      const std::size_t dst = (order == CUBLASLT_ORDER_ROW)
+                                ? (static_cast<std::size_t>(i) * static_cast<std::size_t>(cols) + static_cast<std::size_t>(j))
+                                : (static_cast<std::size_t>(j) * static_cast<std::size_t>(rows) + static_cast<std::size_t>(i));
+      out[dst] = logical[src];
+    }
+  }
+  return out;
+}
+
+/**
+ * @brief Symmetrize a square logical matrix in-place (A := A^T) using row-major indexing.
+ */
+void symmetrize_logical_square(std::vector<std::int8_t> &logical, int n)
+{
+  for (int i = 0; i < n; ++i)
+  {
+    for (int j = i + 1; j < n; ++j)
+    {
+      logical[static_cast<std::size_t>(j) * static_cast<std::size_t>(n) + static_cast<std::size_t>(i)] =
+        logical[static_cast<std::size_t>(i) * static_cast<std::size_t>(n) + static_cast<std::size_t>(j)];
+    }
+  }
 }
 
 /**
@@ -135,6 +174,11 @@ struct CliOptions
   int warmup_iters{200};
   bool enable_nvtx{false};
   bool enable_cuda_profiler_gating{false};
+  bool symmetric_inputs{false};
+  bool summary_json{false};
+  cublasLtOrder_t order_a{CUBLASLT_ORDER_ROW};
+  cublasLtOrder_t order_b{CUBLASLT_ORDER_ROW};
+  cublasLtOrder_t order_c{CUBLASLT_ORDER_ROW};
   ForceAlgo force_algo{};
 };
 
@@ -206,6 +250,28 @@ Variant parse_variant(const std::string &s)
 }
 
 /**
+ * @brief Convert a user-facing string into a cuBLASLt matrix layout order.
+ */
+cublasLtOrder_t parse_order(const std::string &s, const char *flag)
+{
+  if (s == "row")
+    return CUBLASLT_ORDER_ROW;
+  if (s == "col")
+    return CUBLASLT_ORDER_COL;
+  throw std::runtime_error(std::string("Invalid ") + flag + " (expected one of: row, col): '" + s + "'");
+}
+
+const char *order_to_string(cublasLtOrder_t order)
+{
+  return (order == CUBLASLT_ORDER_COL) ? "col" : "row";
+}
+
+const char *op_to_string(cublasOperation_t op)
+{
+  return (op == CUBLAS_OP_T) ? "T" : "N";
+}
+
+/**
  * @brief Format an algo config as a short human-readable string.
  */
 std::string algo_to_string(const CublasLtAlgoConfig &cfg)
@@ -256,12 +322,18 @@ void print_usage(const char *argv0)
     << "  --iters N                              Timed iterations per plan (default: 2000)\n"
     << "  --warmup N                             Warmup iterations per plan (default: 200)\n"
     << "  --device ID                            CUDA device index to use (default: current)\n"
+    << "  --order {row|col}                      Shorthand: set --order-a/--order-b/--order-c\n"
+    << "  --order-a {row|col}                    Storage order for A layout (default: row)\n"
+    << "  --order-b {row|col}                    Storage order for B layout (default: row)\n"
+    << "  --order-c {row|col}                    Storage order for C layout (default: row)\n"
+    << "  --symmetric-inputs                     Generate symmetric A and B (A=A^T, B=B^T)\n"
     << "  --nvtx                                 Emit NVTX ranges around timed GEMM loops\n"
     << "  --cuda-profiler-gating                 Call cudaProfilerStart/Stop around timed GEMM loops\n"
     << "  --force-algo ID                        Force a cuBLASLt algorithm ID (enables AlgoCheck)\n"
     << "  --tile-id ID                           Force tile_id (optional; defaults for algo 23/64)\n"
     << "  --stages-id ID                         Force stages_id (optional; defaults for algo 23/64)\n"
     << "  --splitk N                             Force splitk_num (optional; defaults for algo 23/64)\n"
+    << "  --summary-json                         Print one JSON summary line per run (for scripts)\n"
     << "  --help                                 Show this help\n"
     << "\n"
     << "Notes:\n"
@@ -332,6 +404,34 @@ CliOptions parse_cli(int argc, char **argv)
       out.device_id = parse_int(require_value("--device"), "device id");
       continue;
     }
+    if (arg == "--order")
+    {
+      const auto o = parse_order(require_value("--order"), "--order");
+      out.order_a  = o;
+      out.order_b  = o;
+      out.order_c  = o;
+      continue;
+    }
+    if (arg == "--order-a")
+    {
+      out.order_a = parse_order(require_value("--order-a"), "--order-a");
+      continue;
+    }
+    if (arg == "--order-b")
+    {
+      out.order_b = parse_order(require_value("--order-b"), "--order-b");
+      continue;
+    }
+    if (arg == "--order-c")
+    {
+      out.order_c = parse_order(require_value("--order-c"), "--order-c");
+      continue;
+    }
+    if (arg == "--symmetric-inputs")
+    {
+      out.symmetric_inputs = true;
+      continue;
+    }
     if (arg == "--nvtx")
     {
       out.enable_nvtx = true;
@@ -364,6 +464,11 @@ CliOptions parse_cli(int argc, char **argv)
     {
       out.force_algo.enabled        = true;
       out.force_algo.cfg.splitk_num = std::max(1, parse_int(require_value("--splitk"), "splitk"));
+      continue;
+    }
+    if (arg == "--summary-json")
+    {
+      out.summary_json = true;
       continue;
     }
 
@@ -512,6 +617,86 @@ void print_row(const TimedRun &r)
             << " splitk=" << r.algo.splitk_num << "\n";
 }
 
+std::string json_escape(const std::string &s)
+{
+  std::string out;
+  out.reserve(s.size());
+  for (const unsigned char c : s)
+  {
+    switch (c)
+    {
+      case '\\':
+        out += "\\\\";
+        break;
+      case '"':
+        out += "\\\"";
+        break;
+      case '\n':
+        out += "\\n";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        if (c < 0x20)
+        {
+          std::ostringstream oss;
+          oss << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c);
+          out += oss.str();
+        }
+        else
+        {
+          out += static_cast<char>(c);
+        }
+        break;
+    }
+  }
+  return out;
+}
+
+void print_summary_json_line(const TimedRun &r,
+                             cublasOperation_t ta,
+                             cublasOperation_t tb,
+                             const GemmPlanOptions &opts,
+                             const CliOptions &cli)
+{
+  std::ostringstream oss;
+  oss << "ACCELSIM_GEMM_RUN {"
+      << "\"label\":\"" << json_escape(r.label) << "\""
+      << ",\"ok\":" << (r.ok ? "true" : "false")
+      << ",\"avg_ms\":" << std::fixed << std::setprecision(6) << r.avg_ms
+      << ",\"algo_id\":" << r.algo.id
+      << ",\"tile_id\":" << r.algo.tile_id
+      << ",\"stages_id\":" << r.algo.stages_id
+      << ",\"splitk_num\":" << r.algo.splitk_num
+      << ",\"trans_a\":\"" << op_to_string(ta) << "\""
+      << ",\"trans_b\":\"" << op_to_string(tb) << "\""
+      << ",\"order_a\":\"" << order_to_string(opts.orders.a) << "\""
+      << ",\"order_b\":\"" << order_to_string(opts.orders.b) << "\""
+      << ",\"order_c\":\"" << order_to_string(opts.orders.c) << "\""
+      << ",\"iters\":" << cli.iters
+      << ",\"warmup\":" << cli.warmup_iters;
+  if (cli.symmetric_inputs)
+  {
+    oss << ",\"symmetric_inputs\":true";
+  }
+  if (!r.ok)
+  {
+    oss << ",\"reason\":\"" << json_escape(r.notes) << "\"";
+  }
+  oss << "}\n";
+  std::cout << oss.str();
+}
+
+MatrixDims make_matrix_dims(int rows, int cols, cublasLtOrder_t order)
+{
+  const int ld = (order == CUBLASLT_ORDER_COL) ? rows : cols;
+  return MatrixDims{rows, cols, ld};
+}
+
 } // namespace
 } // namespace accelsim::gemm
 
@@ -563,6 +748,12 @@ int main(int argc, char **argv)
   std::cout << "Repro: N=1000 int8 GEMM variants (focus: ABT_view algo 23)\n";
   std::cout << "GPU: " << prop.name << " (cc " << prop.major << "." << prop.minor << ")\n";
   std::cout << "iters=" << cli.iters << " warmup=" << cli.warmup_iters << "\n";
+  std::cout << "order_a=" << order_to_string(cli.order_a) << " order_b=" << order_to_string(cli.order_b)
+            << " order_c=" << order_to_string(cli.order_c) << "\n";
+  if (cli.symmetric_inputs)
+  {
+    std::cout << "symmetric_inputs=true\n";
+  }
   if (cli.variant != Variant::kAll)
   {
     std::cout << "variant=" << (cli.variant == Variant::kAB ? "AB" : (cli.variant == Variant::kATBView ? "ATB_view" : "ABT_view")) << "\n";
@@ -580,12 +771,19 @@ int main(int argc, char **argv)
 
   // Storage shapes match the square suite in gemm_transpose_bench:
   // A: (M,K), B: (K,N), C: (M,N), row-major.
-  const MatrixDims a_dims{n, n, n};
-  const MatrixDims b_dims{n, n, n};
-  const MatrixDims c_dims{n, n, n};
+  const MatrixDims a_dims = make_matrix_dims(n, n, cli.order_a);
+  const MatrixDims b_dims = make_matrix_dims(n, n, cli.order_b);
+  const MatrixDims c_dims = make_matrix_dims(n, n, cli.order_c);
 
-  const auto a_host = make_host_matrix_int8(n, n, /*seed=*/123);
-  const auto b_host = make_host_matrix_int8(n, n, /*seed=*/124);
+  auto a_logical = make_logical_matrix_int8(n, n, /*seed=*/123);
+  auto b_logical = make_logical_matrix_int8(n, n, /*seed=*/124);
+  if (cli.symmetric_inputs)
+  {
+    symmetrize_logical_square(a_logical, n);
+    symmetrize_logical_square(b_logical, n);
+  }
+  const auto a_host = pack_matrix_int8(a_logical, n, n, cli.order_a);
+  const auto b_host = pack_matrix_int8(b_logical, n, n, cli.order_b);
 
   const std::size_t a_bytes = static_cast<std::size_t>(n) * static_cast<std::size_t>(n) * sizeof(std::int8_t);
   const std::size_t b_bytes = static_cast<std::size_t>(n) * static_cast<std::size_t>(n) * sizeof(std::int8_t);
@@ -642,12 +840,14 @@ int main(int argc, char **argv)
 
     GemmPlanOptions heuristic_opts{};
     heuristic_opts.max_workspace_bytes = 64ull * 1024ull * 1024ull;
-    heuristic_opts.order               = CUBLASLT_ORDER_ROW;
+    heuristic_opts.orders.a            = cli.order_a;
+    heuristic_opts.orders.b            = cli.order_b;
+    heuristic_opts.orders.c            = cli.order_c;
 
     auto forced_opts = [&](const CublasLtAlgoConfig &cfg) {
       GemmPlanOptions o{};
       o.max_workspace_bytes         = heuristic_opts.max_workspace_bytes;
-      o.order                       = heuristic_opts.order;
+      o.orders                      = heuristic_opts.orders;
       o.algo_override.enabled       = true;
       o.algo_override.config        = cfg;
       return o;
@@ -659,8 +859,13 @@ int main(int argc, char **argv)
                        const GemmPlanOptions &opts) -> TimedRun {
       const std::string range_name = label;
       const NvtxRange range(cli.enable_nvtx, range_name);
-      return time_plan(label, dims, types, a_dims, b_dims, c_dims, ta, tb, opts,
-                       stream, a_dev, b_dev, c_dev, &alpha, &beta, cli.enable_cuda_profiler_gating, cli.warmup_iters, cli.iters);
+      const auto r = time_plan(label, dims, types, a_dims, b_dims, c_dims, ta, tb, opts,
+                               stream, a_dev, b_dev, c_dev, &alpha, &beta, cli.enable_cuda_profiler_gating, cli.warmup_iters, cli.iters);
+      if (cli.summary_json)
+      {
+        print_summary_json_line(r, ta, tb, opts, cli);
+      }
+      return r;
     };
 
     auto make_opts = [&](const CublasLtAlgoConfig &cfg) -> GemmPlanOptions {
