@@ -454,7 +454,7 @@ The Python exporter lifts this into `results.json` under `record.cublaslt.algo`.
 
 **A:** In this benchmark we do not manually pad or align buffers. For this run (CUDA Toolkit 13.0 on NVIDIA B200), we rely on the CUDA allocation guarantees plus cuBLASLt's per-algorithm requirements:
 
-- Our base device buffers (`a_dev`, `b_dev`, `c_dev`) come from `cudaMalloc`, so their base addresses satisfy CUDA's allocation alignment guarantees.
+- `cudaMalloc` returns device pointers aligned to at least **256 bytes** by default, so our base device buffers (`a_dev`, `b_dev`, `c_dev`) are >=256B aligned.
 - Transpose-as-view does not change the pointer value (only the cuBLASLt transpose flag and leading dimensions), so the base-pointer alignment remains the same.
 - cuBLASLt algorithms can impose additional minimum alignment constraints for the A/B/C/D base pointers; those are queryable via `cublasLtMatmulAlgoCapGetAttribute()` and are recorded for this run in `cublaslt_algo_caps.json` as `min_alignment_{A,B,C,D}_bytes`.
 - In this run, observed cuBLASLt minimum alignments were 4B or 16B (see `min_alignment_{A,B,C,D}_bytes` in `cublaslt_algo_caps.json`).
