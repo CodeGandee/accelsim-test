@@ -1,0 +1,67 @@
+case_id,n,variant,algo_id,usable,time_us,required_workspace_bytes,check_status,check_status_code,tile_id,stages_id,splitk_num,reduction_scheme,cta_swizzling,custom_option,inner_shape_id,cluster_shape_id,waves_count,notes
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,20,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,21,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,23,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,64,True,32.843520641326904,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.21621622145175934,
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,70,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_ab,1000,AB,71,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,20,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,21,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,23,True,14.397439956665039,0,CUBLAS_STATUS_SUCCESS,0,18,18,1,0,0,0,0,0,0.28828829526901245,
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,64,True,23.90399932861328,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.21621622145175934,
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,70,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1000_int8_a_row_b_row_c_row_abt_view,1000,ABT_view,71,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,20,True,28.767359256744385,0,CUBLAS_STATUS_SUCCESS,0,15,0,1,0,0,0,0,0,-1.0,
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,21,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,23,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,64,True,38.964478969573975,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.21621622145175934,
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,70,True,8.587520122528076,0,CUBLAS_STATUS_SUCCESS,0,18,36,1,0,0,0,0,6,1.0,
+n1024_int8_a_row_b_row_c_row_ab,1024,AB,71,True,8.837119936943054,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,20,True,26.691200733184814,0,CUBLAS_STATUS_SUCCESS,0,15,0,1,0,0,0,0,0,-1.0,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,21,True,8.249599933624268,0,CUBLAS_STATUS_SUCCESS,0,18,18,1,0,0,0,0,0,0.28828829526901245,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,23,True,14.402559995651245,0,CUBLAS_STATUS_SUCCESS,0,18,18,1,0,0,0,0,0,0.28828829526901245,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,64,True,32.84543991088867,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.21621622145175934,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,70,True,7.541760206222534,0,CUBLAS_STATUS_SUCCESS,0,18,36,1,0,0,0,0,6,1.0,
+n1024_int8_a_row_b_row_c_row_abt_view,1024,ABT_view,71,True,7.673599720001221,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,20,True,162.1945571899414,0,CUBLAS_STATUS_SUCCESS,0,15,0,1,0,0,0,0,0,-1.0,
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,21,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,23,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,64,True,136.8575954437256,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.8648648858070374,
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,70,True,14.4268798828125,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,
+n2048_int8_a_row_b_row_c_row_ab,2048,AB,71,True,12.371200323104858,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,6,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,7,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,11,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,20,True,155.31968116760254,0,CUBLAS_STATUS_SUCCESS,0,15,0,1,0,0,0,0,0,-1.0,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,21,True,26.698880195617676,0,CUBLAS_STATUS_SUCCESS,0,24,18,1,0,0,0,0,0,0.8648648858070374,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,23,True,45.12703895568848,0,CUBLAS_STATUS_SUCCESS,0,24,18,1,0,0,0,0,0,0.8648648858070374,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,39,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,41,False,,,,,,,,,,,,,,No heuristic config for this algo_id
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,64,True,100.41919708251953,0,CUBLAS_STATUS_SUCCESS,0,20,8,1,0,0,0,0,0,0.8648648858070374,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,70,True,14.41215991973877,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,
+n2048_int8_a_row_b_row_c_row_abt_view,2048,ABT_view,71,True,12.40064024925232,0,CUBLAS_STATUS_SUCCESS,0,20,36,1,0,0,0,0,6,1.0,

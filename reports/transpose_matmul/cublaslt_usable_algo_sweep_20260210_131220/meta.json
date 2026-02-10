@@ -1,0 +1,47 @@
+{
+  "case_matrix": [
+    {
+      "n": 1000,
+      "variant": "AB"
+    },
+    {
+      "n": 1000,
+      "variant": "ABT_view"
+    },
+    {
+      "n": 1024,
+      "variant": "AB"
+    },
+    {
+      "n": 1024,
+      "variant": "ABT_view"
+    },
+    {
+      "n": 2048,
+      "variant": "AB"
+    },
+    {
+      "n": 2048,
+      "variant": "ABT_view"
+    }
+  ],
+  "device": 0,
+  "git": {
+    "branch": "main",
+    "commit": "c0447cb3ffd17cde9bdb51b5440c67ce922451b8",
+    "dirty": true
+  },
+  "host": {
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-94-generic-x86_64-with-glibc2.39"
+  },
+  "iters": 50,
+  "max_algo_ids": null,
+  "max_workspace_bytes": 67108864,
+  "out_dir": "reports/transpose_matmul/cublaslt_usable_algo_sweep_20260210_131220",
+  "pixi_env": "cuda13",
+  "sweep_bin": "/data/ssd1/huangzhe/code/accelsim-test/cpp/build/Release/cublaslt_usable_algo_sweep",
+  "timestamp_utc": "2026-02-10T13:22:45.598806+00:00",
+  "tool": "cublaslt_usable_algo_sweep",
+  "warmup": 10
+}

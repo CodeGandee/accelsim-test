@@ -1,13 +1,13 @@
 ## Why
 
-Current evidence explains the `N=1000` int8 outlier (`ABT_view` selecting `algo_id=23`), but it does not yet prove why the same does not happen at `N=1024` and `N=2048`. We need a targeted, reproducible experiment that enumerates all usable cuBLASLt algorithms per case so we can separate heuristic ranking effects from hard eligibility constraints.
+We need a targeted, reproducible experiment that shows how cuBLASLt’s usable algorithm space performs for int8 GEMM when we switch between `matmul(A,B)` and `matmul(A,B.T)` (view transpose). This will let us quantify whether `ABT_view` has a consistent advantage or only wins for specific sizes/configurations.
 
 ## What Changes
 
 - Add an experiment workflow that compares only `AB` and `ABT_view` for square int8 GEMM with row-major layouts.
-- Cover `N=1000` (control), `N=1024`, and `N=2048` under identical run settings.
-- Enumerate candidate cuBLASLt algorithm/config combinations and classify them as usable/non-usable via `cublasLtMatmulAlgoCheck` for each case.
-- Time each usable algorithm and produce per-`N` comparison tables for `AB` vs `ABT_view`.
+- Cover `N=1024` and `N=2048`, plus `N=1000` as a reference row, under identical run settings.
+- Enumerate usable cuBLASLt algorithm/config candidates via discovery APIs and classify them as usable/non-usable via `cublasLtMatmulAlgoCheck` for each case.
+- Time each usable candidate and produce per-`N` comparison tables for `AB` vs `ABT_view`.
 - Export raw machine-readable artifacts (full candidate list, usability status, timing stats, selected heuristic result) plus a concise markdown summary for report integration.
 
 ## Capabilities

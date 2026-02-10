@@ -91,6 +91,16 @@ if (NVTOOLSEXT_LIBRARY)
   target_link_libraries(repro_algo23_int8_n1000 PRIVATE ${NVTOOLSEXT_LIBRARY})
 endif()
 
+add_executable(cublaslt_usable_algo_sweep
+    src/cublaslt_usable_algo_sweep.cu
+    src/cublaslt_gemm.cu
+)
+target_link_libraries(cublaslt_usable_algo_sweep PRIVATE
+    CUDA::cublasLt
+    CUDA::cudart
+    nlohmann_json::nlohmann_json
+)
+
 install(TARGETS accelsim_profiling DESTINATION "."
         RUNTIME DESTINATION bin
         ARCHIVE DESTINATION lib
