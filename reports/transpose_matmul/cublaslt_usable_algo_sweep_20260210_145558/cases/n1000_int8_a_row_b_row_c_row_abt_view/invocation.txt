@@ -1,0 +1,2 @@
+cwd: /data/ssd1/huangzhe/code/accelsim-test
+command: pixi run -e cuda13 /data/ssd1/huangzhe/code/accelsim-test/cpp/build/Release/cublaslt_usable_algo_sweep --n 1000 --variant ABT_view --iters 50 --warmup 10 --max-workspace-bytes 67108864 --summary-json --device 0

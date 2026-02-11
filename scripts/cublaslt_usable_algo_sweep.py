@@ -457,12 +457,22 @@ def main() -> int:
         fastest_abt = (abt.get("fastest_candidate") or {}) if isinstance(abt.get("fastest_candidate"), dict) else {}
         best_ab_t = _as_time_us(fastest_ab.get("time_us"))
         best_abt_t = _as_time_us(fastest_abt.get("time_us"))
-        speedup = (best_ab_t / best_abt_t) if (best_ab_t and best_abt_t and best_abt_t != 0) else None
+        speedup = (best_ab_t / best_abt_t) if (best_ab_t is not None and best_abt_t is not None and best_abt_t != 0) else None
+
+        speedup_msg = ""
+        if speedup is not None:
+            # speedup = AB / ABT_view
+            if abs(speedup - 1.0) <= 0.01:
+                speedup_msg = " ⇒ ≈ equal (best-of-case)."
+            elif speedup > 1.0:
+                speedup_msg = f" ⇒ ABT_view is ~{speedup:.2f}× faster (best-of-case)."
+            else:
+                speedup_msg = f" ⇒ AB is ~{(1.0 / speedup):.2f}× faster (best-of-case)."
 
         summary_lines.append(
             f"- N={n}: best AB algo_id={fastest_ab.get('algo_id','NA')} ({_fmt_time(best_ab_t)}), "
             f"best ABT_view algo_id={fastest_abt.get('algo_id','NA')} ({_fmt_time(best_abt_t)})"
-            + ("" if speedup is None else f" ⇒ ABT_view is ~{speedup:.2f}× faster (best-of-case).")
+            + speedup_msg
         )
 
         row23 = next((r for r in merged_rows if r.get("algo_id") == 23), None)
